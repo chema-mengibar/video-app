@@ -2,8 +2,9 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel, QComboBox, 
-    QFileDialog
+    QFileDialog, QApplication, QStyle
 )
+from PySide6.QtGui import QIcon 
 from PySide6.QtCore import Qt, Signal, Slot, QSize
 
 # Importaciones de los componentes internos y features
@@ -53,11 +54,28 @@ class VideoAreaWidget(QWidget):
         control_h_layout = QHBoxLayout(control_bar)
         control_h_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.btn_load = QPushButton("📂 Load")
-        self.btn_play = QPushButton("▶️ Play")
-        self.btn_pause = QPushButton("⏸️ Pause")
-        self.btn_screenshot = QPushButton("📷 Screenshot")
-        self.btn_add_bookmark = QPushButton("🔖 Mark")
+        self.btn_play = QPushButton()
+        self.btn_play.setIcon(QApplication.style().standardIcon(QStyle.SP_MediaPlay))
+        self.btn_play.setIconSize(QSize(12, 12))
+
+        self.btn_pause = QPushButton()
+        self.btn_pause.setIcon(QApplication.style().standardIcon(QStyle.SP_MediaPause))
+        self.btn_pause.setIconSize(QSize(12, 12))
+        self.btn_pause.setToolTip("Pause")
+
+
+        self.btn_screenshot = QPushButton()
+        self.btn_screenshot.setIcon(QIcon("assets/icons/photo-camera.svg"))
+        self.btn_screenshot.setIconSize(QSize(12, 12))
+        self.btn_screenshot.setToolTip("Screenshot")
+
+
+        self.btn_add_bookmark = QPushButton()
+        self.btn_add_bookmark.setIcon(QIcon("assets/icons/bookmark-plus.svg"))
+        self.btn_add_bookmark.setIconSize(QSize(12, 12))
+        self.btn_add_bookmark.setToolTip("Mark")
+
+
         self.time_label = QLabel(VideoService.format_time(0) + " / " + VideoService.format_time(0))
         
         self.quality_combo = QComboBox()
@@ -65,7 +83,7 @@ class VideoAreaWidget(QWidget):
         self.quality_combo.addItem("Medium (0.5x)", 0.5)
         self.quality_combo.addItem("Low (0.1x)", 0.1)
         
-        control_h_layout.addWidget(self.btn_load)
+
         control_h_layout.addWidget(self.btn_play)
         control_h_layout.addWidget(self.btn_pause)
         control_h_layout.addWidget(self.time_label)
@@ -78,7 +96,6 @@ class VideoAreaWidget(QWidget):
 
     def _connect_signals(self):
         """Conecta los widgets a las señales de salida del componente."""
-        self.btn_load.clicked.connect(self.load_video_request)
         self.btn_play.clicked.connect(lambda: self.play_pause_request.emit(True))
         self.btn_pause.clicked.connect(lambda: self.play_pause_request.emit(False))
         self.timeline_slider.sliderMoved.connect(self.seek_slider_moved)

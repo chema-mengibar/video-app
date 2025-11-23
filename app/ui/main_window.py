@@ -54,9 +54,12 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_v_layout = QVBoxLayout(central_widget)
+        main_v_layout.setContentsMargins(0, 0, 0, 0)
+        main_v_layout.setSpacing(0)
         
         # 1. Top Bar
         self.top_bar = TopBarWidget() 
+      
         main_v_layout.addWidget(self.top_bar)
 
         # Contenedor para Video Area + Sidebar
