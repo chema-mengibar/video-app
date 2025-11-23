@@ -8,10 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap 
-
 from ui.styles.theme import DarkTheme 
-
-# Importamos las dependencias (Servicios y Componentes)
 from services.video_service import VideoService 
 from core.service_manager import ServiceManager 
 from ui.widgets.video_area_widget import VideoAreaWidget
@@ -165,7 +162,7 @@ class MainWindow(QMainWindow):
             self.sidebar.setVisible(True)
             self.sidebar.set_current_tab(index)
             
-            # 2. 🟢 LÓGICA DE REACCIÓN: Activar el dibujo si se selecciona 'Drawing Controls' (índice 1)
+            # 2. Activar el dibujo si se selecciona 'Drawing Controls' (índice 1)
             if index == 1:
                 drawing_label.enable_drawing(True)
             else:
@@ -180,7 +177,7 @@ class MainWindow(QMainWindow):
             if not is_bookmarks_checked and not is_drawing_checked:
                 self.sidebar.setVisible(False)
                 
-            # 3. 🟢 LÓGICA DE REACCIÓN: Siempre desactivar el dibujo si se deselecciona la pestaña de dibujo (índice 1)
+            # 3. Siempre desactivar el dibujo si se deselecciona la pestaña de dibujo (índice 1)
             if index == 1:
                 drawing_label.enable_drawing(False)
 

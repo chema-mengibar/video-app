@@ -8,10 +8,9 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QMenu, QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Slot, Qt, QObject, Signal, QPoint 
-
 from services.video_service import VideoService 
 from ui.styles.theme import DarkTheme 
-from PySide6.QtGui import QAction 
+from PySide6.QtGui import QAction, QColor, QBrush
 
 class BookmarkEntry(QObject):
     """
@@ -76,7 +75,6 @@ class BookmarksModule(QWidget):
         main_layout.addLayout(control_layout)
         main_layout.addWidget(self.list_widget)
         
-        # 🟢 CORRECCIÓN: Usar el método estático de VideoService directamente
         self.format_time = VideoService.format_time 
 
     def connect_signals(self):
@@ -153,7 +151,7 @@ class BookmarksModule(QWidget):
             
             item = QListWidgetItem(item_text)
             if bookmark.time_msec == current_msec:
-                item.setBackground(Qt.yellow)
+                item.setBackground(QBrush(QColor(DarkTheme.WOW_COLOR)))
             
             self.list_widget.addItem(item)
             
@@ -183,7 +181,6 @@ class BookmarksModule(QWidget):
             return
 
         # Intentar obtener el directorio del video cargado para el path por defecto
-        # 🟢 AJUSTE: Usar el atributo current_video_directory de MainWindow (parent_app)
         default_dir = self.parent_app.current_video_directory or os.path.expanduser("~") 
         default_path = os.path.join(default_dir, "videomarks.json")
         
@@ -198,7 +195,6 @@ class BookmarksModule(QWidget):
 
     def open_load_dialog(self):
         """Abre el diálogo de cargar y delega la carga."""
-        # 🟢 AJUSTE: Usar el atributo current_video_directory de MainWindow (parent_app)
         default_dir = self.parent_app.current_video_directory or os.path.expanduser("~")
         default_path = os.path.join(default_dir, "videomarks.json")
 

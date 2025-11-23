@@ -43,9 +43,12 @@ class TopBarWidget(QFrame):
         # Botones toggle (derecha)
         self.btn_toggle_bookmarks = QPushButton("Marks")
         self.btn_toggle_drawing = QPushButton("Draw")
+
         self.btn_toggle_bookmarks.setCheckable(True)
         self.btn_toggle_drawing.setCheckable(True)
-        self.btn_toggle_drawing.setChecked(True)
+
+        # Inicial Tab
+        self.btn_toggle_bookmarks.setChecked(True)
 
         layout.addStretch(1)  # Empuja los toggles hacia la derecha
         layout.addWidget(self.btn_toggle_bookmarks)

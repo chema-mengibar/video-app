@@ -14,7 +14,8 @@ class DarkTheme:
     BASE_LIGHT = "#ffffff"
 
     TEXT_LIGHT = "#CCCCCC"
-    ERROR_RED = "#AA0000"
+
+    WOW_COLOR = "#eb3474"
 
     BORDER_COLOR = "#99999988"
     DIVISION = '1px solid #99999988'
@@ -51,6 +52,11 @@ class DarkTheme:
             border: none;
         }}
 
+        QListWidget::item[is-now="true"] {{
+            background-color: {WOW_COLOR}; 
+            color: {TEXT_LIGHT};         
+        }}
+
         QSlider::groove:horizontal {{ border: 1px solid {BORDER_COLOR}; background: {BACKGROUND_MEDIUM}; height: 8px; border-radius: 4px; }}
         QSlider::handle:horizontal {{ background: {ACCENT_COLOR}; border: 1px solid {BORDER_COLOR}; width: 15px; margin: -4px 0; border-radius: 4px; }}
         QLabel {{ color: {TEXT_LIGHT}; }}
@@ -61,6 +67,13 @@ class DarkTheme:
     SIDEBAR_HEADER = f"padding: 5px; font-weight: bold"
     SIDEBAR_CONTAINER = f"background-color: {BACKGROUND_DARK}; border-left: {DIVISION};"
 
+    TIMELINE_RULER = f"""
+            TimelineRuler {{
+                background-color: {BACKGROUND_DARK}
+               
+            }}
+    """
+
     TOOLBAR_STYLES = f"""
         #topbar_widget {{ 
             background-color: {BACKGROUND_DARK}; 
@@ -69,4 +82,3 @@ class DarkTheme:
             height: 24px; 
         }}
     """
-    CLOSE_BUTTON = f"background-color: {ERROR_RED}; color: white; border-radius: 10px;"

@@ -85,7 +85,6 @@ class DrawManager:
             with open(path, 'r') as f:
                 data = json.load(f)
 
-            # 🟢 Validación 1: El contenido debe ser una lista (estructura base)
             if not isinstance(data, list):
                 print(f"Error de formato: El archivo JSON en {path} no contiene una lista de entradas (esperado: [...]).")
                 self.drawing_entries = []
@@ -95,7 +94,6 @@ class DrawManager:
             required_keys = ['time_msec', 'duration_msec', 'paths']
             
             for item in data:
-                # 🟢 Validación 2: Verificar la presencia de claves esenciales y tipo de 'paths'
                 if all(k in item for k in required_keys) and isinstance(item['paths'], list):
                     loaded_entries.append(item)
                 else:
@@ -105,10 +103,8 @@ class DrawManager:
             print(f"Dibujos cargados ({len(loaded_entries)} entradas) desde: {path}")
 
         except json.JSONDecodeError:
-            # 🟢 Manejo de JSON corrupto o mal formado
             print(f"Error al decodificar el archivo JSON en {path}. El archivo está corrupto o tiene formato inválido.")
             self.drawing_entries = []
         except Exception as e:
-            # 🟢 Cualquier otro error de lectura
             print(f"Error desconocido al cargar dibujos desde {path}: {e}")
             self.drawing_entries = []

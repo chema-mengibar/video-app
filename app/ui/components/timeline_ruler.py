@@ -3,6 +3,7 @@
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPainter, QColor, QFont, QPen
 from PySide6.QtCore import Qt, QSize
+from ui.styles.theme import DarkTheme 
 
 class TimelineRuler(QWidget):
     # ... (El código completo de TimelineRuler de la revisión anterior va aquí)
@@ -14,6 +15,8 @@ class TimelineRuler(QWidget):
         self.current_msec = 0
         # Ahora espera una lista simple de msec desde el service (simplificado)
         self.bookmarks_msec = [] 
+
+        self.setStyleSheet(DarkTheme.TIMELINE_RULER)
         
     def minimumSizeHint(self):
         return QSize(100, 15)
@@ -32,8 +35,6 @@ class TimelineRuler(QWidget):
         width = rect.width()
         height = rect.height()
         
-        painter.fillRect(rect, QColor("#336699")) 
-        
         if self.duration_msec == 0:
             return
 
@@ -42,9 +43,15 @@ class TimelineRuler(QWidget):
         # 2. Líneas de Tiempo (Lógica de escalado de marcas)
         step_msec = 1000 
         if pixels_per_msec * step_msec < 30: 
-            step_msec = 5000 
+            step_msec = 5000 # 5 segundos
             if pixels_per_msec * step_msec < 30:
-                step_msec = 10000 
+                step_msec = 10000 # 10 segundos
+                if pixels_per_msec * step_msec < 30:
+                    step_msec = 60000 # 🟢 1 minuto
+                    if pixels_per_msec * step_msec < 30:
+                        step_msec = 300000 # 🟢 5 minutos
+                        if pixels_per_msec * step_msec < 30:
+                            step_msec = 600000 # 🟢 10 minutos
                      
         painter.setPen(QColor("#555555")) 
         font = QFont("Arial", 6) 
@@ -62,7 +69,7 @@ class TimelineRuler(QWidget):
                 painter.drawText(x + 2, height - 2, time_str) 
 
         # 3. Dibujar Videomarks
-        VM_COLOR = QColor("#ff0000") 
+        VM_COLOR = QColor(DarkTheme.WOW_COLOR) 
         painter.setPen(Qt.NoPen) 
         painter.setBrush(VM_COLOR) 
         
@@ -75,7 +82,7 @@ class TimelineRuler(QWidget):
 
         # 4. Marcador de Posición Actual
         current_x = int(self.current_msec * pixels_per_msec)
-        painter.setPen(QPen(QColor(255, 0, 0), 2)) 
+        painter.setPen(QPen(QColor(DarkTheme.WOW_COLOR), 2)) 
         painter.drawLine(current_x, 0, current_x, height) 
 
         painter.end()
