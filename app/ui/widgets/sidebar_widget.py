@@ -7,7 +7,7 @@ from ui.styles.theme import DarkTheme
 
 # Importaciones de módulos/features
 from features.timeline.videomarks_module import BookmarksModule 
-from ui.widgets.drawing_controls_widget import DrawingControlsWidget
+from features.draw.drawing_module import DrawingModule
 from services.video_service import VideoService  # Para tipado y estructura
 
 class SidebarWidget(QFrame):
@@ -46,8 +46,8 @@ class SidebarWidget(QFrame):
         self.tabs.addWidget(self.bookmarks_module)
 
         # 2. Drawing Controls Widget (Index 1)
-        self.drawing_controls = DrawingControlsWidget(initial_color)
-        self.tabs.addWidget(self.drawing_controls)
+        self.drawing_module = DrawingModule(initial_color)
+        self.tabs.addWidget(self.drawing_module)
 
         main_layout.addWidget(self.tabs)
 
@@ -62,6 +62,6 @@ class SidebarWidget(QFrame):
         """Retorna la instancia del módulo de Bookmarks."""
         return self.bookmarks_module
 
-    def get_drawing_controls_widget(self) -> DrawingControlsWidget:
+    def get_drawing_controls_widget(self) -> DrawingModule:
         """Retorna la instancia del widget de control de dibujo."""
-        return self.drawing_controls
+        return self.drawing_module

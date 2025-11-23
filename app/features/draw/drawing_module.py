@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Slot, Signal, QObject, Qt
 
-class DrawingControlsWidget(QWidget):
+class DrawingModule(QWidget):
     """
     Componente UI para controlar la herramienta de dibujo (color, duración, guardado).
     Se asume que el estado de 'activado/desactivado' se controla desde el TopBar, 
@@ -14,7 +14,6 @@ class DrawingControlsWidget(QWidget):
     """
     
     # Señales para notificar al coordinador (MainWindow) de las acciones del usuario
-    # ⚠️ SEÑAL toggle_drawing_signal(bool) ELIMINADA.
     save_drawing_request = Signal()
     clear_canvas_request = Signal()
     color_changed = Signal(QColor)
