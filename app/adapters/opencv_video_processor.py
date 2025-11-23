@@ -3,166 +3,167 @@
 import cv2
 import time
 import os
-from PySide6.QtCore import QObject, QThread, Signal, QMutex, QMutexLocker, QWaitCondition
-from services.video_service import VideoProcessorInterface # Importar la interfaz
+from PySide6.QtCore import QThread, Signal, Slot, QObject, QMutex # Se añade QMutex
 
-# ----------------------------------------------------------------------
-# CLASE TRABAJADORA (Worker): Bucle de reproducción en el hilo secundario
-# ----------------------------------------------------------------------
-class OpenCVVideoWorker(QObject):
+class OpenCVVideoProcessor(QObject):
+    """
+    Adaptador de Procesamiento de Video usando OpenCV (La lógica de bajo nivel).
+    """
     
-    def __init__(self, processor: VideoProcessorInterface, parent=None):
-        super().__init__(parent)
-        self.processor = processor # Referencia al procesador para acceder a metadatos
-        self.cap = None
-        self.is_playing = False
-        self.exit_flag = False
-        
-        # Sincronización
-        self.mutex = QMutex()
-        self.wait_condition = QWaitCondition() 
-        self.current_scale_factor = 1.0
+    frame_ready_signal = Signal(object) 
+    time_updated_signal = Signal(int)    
+    video_loaded_signal = Signal(bool, int, str) 
 
-    def run(self):
-        """Bucle principal de reproducción/extracción de frames."""
-        print("Worker thread started.")
-        while not self.exit_flag:
-            
-            with QMutexLocker(self.mutex):
-                # Esperar si está pausado o no hay video
-                if not self.processor.is_video_loaded() or not self.is_playing:
-                    self.wait_condition.wait(self.mutex)
-                    
-            if self.exit_flag:
-                break
-                
-            # Leer el frame
-            ret, frame = self.cap.read() if self.cap else (False, None)
-            
-            if ret:
-                current_msec = self.cap.get(cv2.CAP_PROP_POS_MSEC)
-                
-                # Emitir frame y tiempo ANTES de dormir (para una UI más reactiva)
-                self.processor.frame_ready.emit(frame)
-                self.processor.time_updated.emit(int(current_msec))
-                
-                # Calcular el tiempo de espera
-                delay = 1 / self.processor.get_metadata()['fps']
-                # Ajuste de escala para alto rendimiento
-                scaled_delay = delay * self.current_scale_factor
-                
-                time.sleep(scaled_delay)
-            else:
-                # Si llegamos al final, pausar
-                with QMutexLocker(self.mutex):
-                    self.is_playing = False
-                self.processor.time_updated.emit(self.processor.get_metadata()['duration']) # Posicionar al final
-        
-        if self.cap:
-            self.cap.release()
-        print("Worker thread finished.")
-
-# ----------------------------------------------------------------------
-# ADAPTADOR: Implementa la interfaz para el Servicio
-# ----------------------------------------------------------------------
-class OpenCVVideoProcessor(VideoProcessorInterface):
-    
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.worker = OpenCVVideoWorker(self)
-        self.worker_thread = QThread()
-        self.worker.moveToThread(self.worker_thread)
-        self.worker_thread.start() # Iniciar el hilo del worker
+        self.is_loaded = False
+        self.current_quality = 1.0 
         
-        # Metadatos
-        self._is_loaded = False
-        self._current_time_msec = 0
-        self._metadata = {
-            'path': None, 
-            'duration': 0, 
-            'fps': 30.0, 
-            'width': 0, 
-            'height': 0,
-            'directory': None
-        }
+        self.thread = VideoThread()
+        self.thread.frame_ready.connect(self.frame_ready_signal)
+        self.thread.time_updated.connect(self.time_updated_signal)
+        self.thread.video_loaded_info.connect(self.video_loaded_signal)
+        
+        self.thread.start() 
 
-    # --- Implementación de la Interfaz ---
-    
-    def open(self, path: str) -> bool:
-        """Abre el archivo de video y lee metadatos."""
-        with QMutexLocker(self.worker.mutex):
-            if self._is_loaded:
-                self.worker.cap.release()
+    # --- API pública (Usada por VideoService) ---
 
-            cap = cv2.VideoCapture(path)
-            if not cap.isOpened():
-                self.video_loaded.emit(False, 0, "")
-                self._is_loaded = False
-                return False
+    def load_video(self, path: str):
+        if not os.path.exists(path):
+            self.video_loaded_signal.emit(False, 0, path)
+            self.is_loaded = False
+            return
 
-            # Cargar Metadatos
-            self._metadata['path'] = path
-            self._metadata['duration'] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS) * 1000)
-            self._metadata['fps'] = cap.get(cv2.CAP_PROP_FPS)
-            self._metadata['width'] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            self._metadata['height'] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            self._metadata['directory'] = os.path.dirname(path)
-            
-            self.worker.cap = cap
-            self._is_loaded = True
-            self.worker.is_playing = False # Inicia pausado
-            self._current_time_msec = 0
-            
-            self.video_loaded.emit(True, self._metadata['duration'], self._metadata['directory'])
-            return True
+        self.thread.load_video(path)
+        self.is_loaded = True
+        
+    def set_playing(self, play: bool):
+        self.thread.set_playing(play)
 
-    def run_playback_loop(self):
-        # El hilo ya se inició en __init__
-        pass 
-
-    def toggle_play_pause(self, play: bool):
-        with QMutexLocker(self.worker.mutex):
-            self.worker.is_playing = play
-            if play:
-                self.worker.wait_condition.wakeAll()
-    
     def seek(self, msec: int):
-        self.slider_moved(msec)
+        self.thread.seek(msec)
+
+    def set_quality(self, factor: float):
+        self.current_quality = factor
+        self.thread.set_quality(factor)
         
-    def slider_moved(self, msec: int):
-        with QMutexLocker(self.worker.mutex):
-            if self.worker.cap:
-                self.worker.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
-                # Forzar la lectura de un frame para actualizar la UI inmediatamente
-                ret, frame = self.worker.cap.read()
-                if ret:
-                    self.frame_ready.emit(frame)
-                    self._current_time_msec = msec
-                    self.time_updated.emit(msec)
+    def stop_processing(self):
+        self.thread.stop()
+        self.thread.wait() 
+
+
+class VideoThread(QThread):
+    """
+    Hilo dedicado a manejar el loop de lectura de frames de OpenCV.
+    """
+    frame_ready = Signal(object)
+    time_updated = Signal(int)
+    video_loaded_info = Signal(bool, int, str) 
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.cap = None 
+        self.path = None
+        self.playing = False
+        self.running = True
+        self.frame_rate = 30.0
+        self.duration_msec = 0
+        self.frame_skip_factor = 1.0 
+        self.mutex = QMutex() # Inicialización del Mutex
+
+    @Slot(str)
+    def load_video(self, path: str):
+        self.path = path
+        
+        self.mutex.lock()
+        try:
+            if self.cap and self.cap.isOpened():
+                self.cap.release()
+                
+            self.cap = cv2.VideoCapture(path)
+            
+            success = False
+            if self.cap.isOpened():
+                success = True
+                self.frame_rate = self.cap.get(cv2.CAP_PROP_FPS)
+                frame_count = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                self.duration_msec = int((frame_count / self.frame_rate) * 1000)
+                
+            self.video_loaded_info.emit(success, self.duration_msec if success else 0, path)
+        finally:
+            self.mutex.unlock()
+
+
+    @Slot(bool)
+    def set_playing(self, play: bool):
+        self.playing = play
+
+    @Slot(int)
+    def seek(self, msec: int):
+        if self.cap and self.cap.isOpened():
+            # Bloqueo para la operación de seek
+            self.mutex.lock()
+            try:
+                self.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
+            finally:
+                self.mutex.unlock()
+            
+            # Forzar la lectura de un frame (que usará el mismo lock internamente)
+            self.read_and_emit_frame() 
+            self.time_updated.emit(msec)
+
+    @Slot(float)
+    def set_quality(self, factor: float):
+        self.frame_skip_factor = factor
+
+    def read_and_emit_frame(self):
+        ret = False
+        frame = None
+        current_msec = 0
+        
+        # Bloqueo para la lectura y el set (acceso a self.cap)
+        self.mutex.lock()
+        try:
+            if self.cap and self.cap.isOpened():
+                skip_frames = int(1 / self.frame_skip_factor) if self.frame_skip_factor > 0 else 1
+                
+                for _ in range(skip_frames):
+                    ret, frame = self.cap.read()
+                    if not ret:
+                        self.playing = False
+                        self.cap.set(cv2.CAP_PROP_POS_MSEC, 0) 
+                        break
+                    
+                current_msec = int(self.cap.get(cv2.CAP_PROP_POS_MSEC))
+        finally:
+            self.mutex.unlock()
+        
+        if ret:
+            self.frame_ready.emit(frame)
+            self.time_updated.emit(current_msec)
+            return True
+        elif self.cap and not ret: 
+            # Si el video ha llegado al final, emitir 0 para restablecer el tiempo
+            self.time_updated.emit(0) 
+        return False
+
+    def run(self):
+        while self.running:
+            if self.cap and self.cap.isOpened() and self.playing:
+                self.read_and_emit_frame() 
+                
+                # Cálculo de la pausa para mantener la velocidad de reproducción.
+                if self.frame_rate > 0:
+                    delay = (1.0 / self.frame_rate)
+                    # Multiplicar el delay por el número de frames leídos/saltados
+                    skip_frames = int(1 / self.frame_skip_factor) if self.frame_skip_factor > 0 else 1
+                    delay = delay * skip_frames
                 else:
-                    # En caso de error, volver a la posición deseada
-                    self.worker.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
+                    delay = 0.033 
 
-    def slider_released(self):
-        # En este diseño, slider_moved ya maneja la lógica de seek. No se requiere acción adicional.
-        pass 
-
-    def set_scale_factor(self, scale: float):
-        self.worker.current_scale_factor = scale
-
-    def stop_thread(self):
-        with QMutexLocker(self.worker.mutex):
-            self.worker.exit_flag = True
-            self.worker.wait_condition.wakeAll()
-        self.worker_thread.quit()
-        self.worker_thread.wait(5000)
-
-    # --- Helpers ---
-    def is_video_loaded(self) -> bool:
-        return self._is_loaded
-        
-    def get_current_time(self) -> int:
-        return self._current_time_msec
-        
-    def get_metadata(self) -> dict:
-        return self._metadata
+                time.sleep(delay)
+            else:
+                time.sleep(0.01) 
+                
+        if self.cap:
+            self.cap.release()

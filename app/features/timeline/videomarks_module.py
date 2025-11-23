@@ -7,9 +7,12 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QInputDialog, 
     QLabel, QLineEdit, QMenu, QMessageBox, QFileDialog
 )
-# 🟢 CORRECCIÓN: Se añade QPoint a las importaciones de PySide6.QtCore
 from PySide6.QtCore import Slot, Qt, QObject, Signal, QPoint 
-from PySide6.QtGui import QAction
+
+# 🟢 IMPORTACIÓN NECESARIA: Accedemos al método estático format_time
+from services.video_service import VideoService 
+
+from PySide6.QtGui import QAction 
 
 class BookmarkEntry(QObject):
     """
@@ -34,10 +37,12 @@ class BookmarksModule(QWidget):
     
     marks_changed = Signal() 
 
-    def __init__(self, video_service, parent_app): # video_service es la inyección de dependencia
-        super().__init__()
+    def __init__(self, video_service, parent_app, parent=None): 
+        super().__init__(parent)
         
         self.video_service = video_service 
+        # parent_app (MainWindow) ya no se usa para format_time, pero se mantiene por si es necesaria
+        # para diálogos o el path del video.
         self.parent_app = parent_app 
         self.bookmarks: list[BookmarkEntry] = []
         
@@ -70,8 +75,8 @@ class BookmarksModule(QWidget):
         main_layout.addLayout(control_layout)
         main_layout.addWidget(self.list_widget)
         
-        # Asumiendo que MainWindow tiene un método estático format_time o un helper accesible
-        self.format_time = self.parent_app.format_time 
+        # 🟢 CORRECCIÓN: Usar el método estático de VideoService directamente
+        self.format_time = VideoService.format_time 
 
     def connect_signals(self):
         """Conecta las acciones de la UI a los métodos internos y al servicio."""
@@ -79,9 +84,7 @@ class BookmarksModule(QWidget):
         self.btn_save.clicked.connect(self.open_save_dialog)
         self.btn_load.clicked.connect(self.open_load_dialog)
         
-        # Acción al hacer doble click en un elemento
         self.list_widget.itemDoubleClicked.connect(self.seek_to_bookmark)
-        # Acción para el menú contextual (clic derecho)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
         
     # --- Lógica de Negocio ---
@@ -93,7 +96,7 @@ class BookmarksModule(QWidget):
             QMessageBox.warning(self, "Warning", "Please load a video first.")
             return
 
-        current_time = self.video_service.get_current_time() # Usar el servicio
+        current_time = self.video_service.get_current_time() 
         
         # Diálogo para pedir la etiqueta
         label, ok = QInputDialog.getText(
@@ -107,13 +110,12 @@ class BookmarksModule(QWidget):
         if ok and label:
             new_bookmark = BookmarkEntry(current_time, label)
             
-            # Conectar la señal de la nueva entrada directamente al método seek del servicio
             new_bookmark.request_seek.connect(self.video_service.seek) 
             
             self.bookmarks.append(new_bookmark)
             self.bookmarks.sort(key=lambda b: b.time_msec)
             self.refresh_list_ui(current_time)
-            self.marks_changed.emit() # Notificar a la UI principal para actualizar el ruler
+            self.marks_changed.emit() 
 
     @Slot(QListWidgetItem)
     def seek_to_bookmark(self, item: QListWidgetItem):
@@ -121,16 +123,13 @@ class BookmarksModule(QWidget):
         bookmark_index = self.list_widget.row(item)
         if 0 <= bookmark_index < len(self.bookmarks):
             bookmark = self.bookmarks[bookmark_index]
-            # Disparar la señal que está conectada al VideoService
             bookmark.request_seek.emit(bookmark.time_msec)
             
     def remove_bookmark(self, item: QListWidgetItem):
         """Elimina un bookmark seleccionado."""
         row = self.list_widget.row(item)
         if 0 <= row < len(self.bookmarks):
-            # Eliminar de la lista de objetos
             self.bookmarks.pop(row)
-            # Eliminar de la lista de UI
             self.list_widget.takeItem(row)
             self.marks_changed.emit()
             
@@ -142,9 +141,6 @@ class BookmarksModule(QWidget):
 
     @Slot(int)
     def update_list_ui(self, current_msec: int):
-        """Actualiza la apariencia del elemento actual en la lista (si es necesario)."""
-        # Esta función puede usarse para destacar el bookmark más cercano
-        # o solo para forzar un redibujo si se mueve la cabeza de reproducción.
         pass
 
     def refresh_list_ui(self, current_msec: int = 0):
@@ -156,25 +152,21 @@ class BookmarksModule(QWidget):
             item_text = f"[{time_str}] {bookmark.label}"
             
             item = QListWidgetItem(item_text)
-            # Ejemplo de cómo marcar el elemento activo
             if bookmark.time_msec == current_msec:
                 item.setBackground(Qt.yellow)
             
             self.list_widget.addItem(item)
             
-    # 🟢 CORRECCIÓN: Usar QPoint en el decorador y en la firma de la función.
     @Slot(QPoint) 
     def show_context_menu(self, pos: QPoint):
         """Muestra el menú contextual para operaciones de la lista."""
         item = self.list_widget.itemAt(pos)
         if item:
             menu = QMenu(self)
-            # Acción de ir (seek)
             seek_action = QAction("Go To Mark", self)
             seek_action.triggered.connect(lambda: self.seek_to_bookmark(item))
             menu.addAction(seek_action)
             
-            # Acción de eliminar
             remove_action = QAction("Remove Mark", self)
             remove_action.triggered.connect(lambda: self.remove_bookmark(item))
             menu.addAction(remove_action)
@@ -191,7 +183,8 @@ class BookmarksModule(QWidget):
             return
 
         # Intentar obtener el directorio del video cargado para el path por defecto
-        default_dir = self.parent_app.current_video_directory or os.path.expanduser("~")
+        # 🟢 AJUSTE: Usar el atributo current_video_directory de MainWindow (parent_app)
+        default_dir = self.parent_app.current_video_directory or os.path.expanduser("~") 
         default_path = os.path.join(default_dir, "videomarks.json")
         
         path, _ = QFileDialog.getSaveFileName(
@@ -205,6 +198,7 @@ class BookmarksModule(QWidget):
 
     def open_load_dialog(self):
         """Abre el diálogo de cargar y delega la carga."""
+        # 🟢 AJUSTE: Usar el atributo current_video_directory de MainWindow (parent_app)
         default_dir = self.parent_app.current_video_directory or os.path.expanduser("~")
         default_path = os.path.join(default_dir, "videomarks.json")
 
@@ -246,7 +240,6 @@ class BookmarksModule(QWidget):
             for item in data:
                 if all(k in item for k in required_keys) and isinstance(item['time_msec'], int):
                     new_mark = BookmarkEntry(item['time_msec'], item['label'])
-                    # Reconectar la señal después de la carga
                     new_mark.request_seek.connect(self.video_service.seek) 
                     loaded_bookmarks.append(new_mark)
                 else:
@@ -255,7 +248,7 @@ class BookmarksModule(QWidget):
             self.bookmarks = loaded_bookmarks
             self.bookmarks.sort(key=lambda b: b.time_msec)
             self.refresh_list_ui()
-            self.marks_changed.emit() # Notificar al ruler
+            self.marks_changed.emit() 
             print(f"Bookmarks cargados ({len(loaded_bookmarks)} entradas) desde: {path}")
 
         except json.JSONDecodeError:
