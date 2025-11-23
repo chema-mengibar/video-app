@@ -68,6 +68,7 @@ class MainWindow(QMainWindow):
         content_h_layout.addWidget(self.video_area, 4)
 
         # 3. Sidebar (1/5 del espacio horizontal)
+        # Obtenemos el color inicial del label para pasarlo al sidebar
         initial_color = self.video_area.get_drawing_label().current_pen_color 
         self.sidebar = SidebarWidget(self.video_service, self, initial_color)
         
@@ -93,6 +94,7 @@ class MainWindow(QMainWindow):
         self.service_manager.video_loaded_info.connect(self.handle_video_loaded) 
 
         # 2. Conexiones de la TOP BAR
+        # La TopBar solo pide alternar la pestaña, la lógica de activación está en _toggle_sidebar_tab.
         self.top_bar.load_video_request.connect(self._select_video_file)
         self.top_bar.toggle_bookmarks_request.connect(
             lambda checked: self._toggle_sidebar_tab(0, checked) # 0 es el índice de Bookmarks
@@ -102,6 +104,8 @@ class MainWindow(QMainWindow):
         )
         
         # 3. Conexiones del VideoAreaWidget (Acciones del usuario en el reproductor)
+        drawing_label = self.video_area.get_drawing_label() # Necesario para las conexiones
+        
         self.video_area.play_pause_request.connect(self.video_service.toggle_play_pause)
         self.video_area.seek_slider_moved.connect(self.video_service.slider_moved)
         self.video_area.seek_slider_released.connect(self.video_service.seek)
@@ -112,11 +116,10 @@ class MainWindow(QMainWindow):
         
         # 4. Conexiones del SidebarWidget (Acciones del usuario en la Feature)
         draw_controls = self.sidebar.get_drawing_controls_widget()
-        drawing_label = self.video_area.get_drawing_label()
         bookmarks_module = self.sidebar.get_bookmarks_module()
 
-        # Dibujo
-        draw_controls.toggle_drawing_signal.connect(drawing_label.enable_drawing)
+        # Dibujo (Las acciones de control)
+        # La señal toggle_drawing_signal fue eliminada del draw_controls.
         draw_controls.clear_canvas_request.connect(drawing_label.clear_drawing)
         draw_controls.color_changed.connect(drawing_label.set_pen_color)
         draw_controls.save_drawing_request.connect(self.save_current_drawing)
@@ -148,15 +151,35 @@ class MainWindow(QMainWindow):
 
     @Slot(bool)
     def _toggle_sidebar_tab(self, index: int, checked: bool):
-        """Alterna la visibilidad del sidebar y selecciona la pestaña correcta."""
+        """
+        Alterna la visibilidad del sidebar y selecciona la pestaña.
+        Contiene la lógica de REACCIÓN para activar/desactivar el dibujo.
+        """
+        drawing_label = self.video_area.get_drawing_label()
+
         if checked:
-            # Mostrar el sidebar y cambiar la pestaña
+            # 1. Mostrar el sidebar y cambiar la pestaña (Responsabilidad de UI)
             self.sidebar.setVisible(True)
             self.sidebar.set_current_tab(index)
+            
+            # 2. 🟢 LÓGICA DE REACCIÓN: Activar el dibujo si se selecciona 'Drawing Controls' (índice 1)
+            if index == 1:
+                drawing_label.enable_drawing(True)
+            else:
+                # Asegurarse de desactivar si se activa Bookmarks
+                drawing_label.enable_drawing(False)
+                
         else:
-            # Ocultar el sidebar si el otro botón no está activo (TopBar maneja el toggle de botones)
-            if not self.top_bar.btn_toggle_bookmarks.isChecked() and not self.top_bar.btn_toggle_drawing.isChecked():
+            # Ocultar el sidebar si el otro botón no está activo
+            is_bookmarks_checked = self.top_bar.btn_toggle_bookmarks.isChecked()
+            is_drawing_checked = self.top_bar.btn_toggle_drawing.isChecked()
+
+            if not is_bookmarks_checked and not is_drawing_checked:
                 self.sidebar.setVisible(False)
+                
+            # 3. 🟢 LÓGICA DE REACCIÓN: Siempre desactivar el dibujo si se deselecciona la pestaña de dibujo (índice 1)
+            if index == 1:
+                drawing_label.enable_drawing(False)
 
     @Slot(object)
     def display_frame(self, frame):

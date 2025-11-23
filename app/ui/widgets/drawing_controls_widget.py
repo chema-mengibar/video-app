@@ -4,15 +4,17 @@ from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QLineEdit, QGridLayout, QColorDialog
 )
 from PySide6.QtGui import QColor
-from PySide6.QtCore import Slot, Signal, QObject
+from PySide6.QtCore import Slot, Signal, QObject, Qt
 
 class DrawingControlsWidget(QWidget):
     """
-    Componente UI para controlar la herramienta de dibujo (color, toggle, duración).
+    Componente UI para controlar la herramienta de dibujo (color, duración, guardado).
+    Se asume que el estado de 'activado/desactivado' se controla desde el TopBar, 
+    gestionado por el MainWindow.
     """
     
     # Señales para notificar al coordinador (MainWindow) de las acciones del usuario
-    toggle_drawing_signal = Signal(bool)
+    # ⚠️ SEÑAL toggle_drawing_signal(bool) ELIMINADA.
     save_drawing_request = Signal()
     clear_canvas_request = Signal()
     color_changed = Signal(QColor)
@@ -27,31 +29,30 @@ class DrawingControlsWidget(QWidget):
         """Construye la interfaz de usuario para los controles."""
         layout = QGridLayout(self)
         
-        layout.addWidget(QLabel("Enable Drawing:"), 0, 0)
-        self.btn_draw_toggle = QPushButton("Toggle")
-        self.btn_draw_toggle.setCheckable(True)
-        layout.addWidget(self.btn_draw_toggle, 0, 1)
-        
-        layout.addWidget(QLabel("Pen Color:"), 1, 0)
+        # ⚠️ ELIMINADO: Botón Enable Drawing (0, 0) y (0, 1)
+
+        layout.addWidget(QLabel("Pen Color:"), 0, 0)
         self.btn_color_pick = QPushButton("Pick Color")
         self._update_color_button_style(self.current_pen_color)
-        layout.addWidget(self.btn_color_pick, 1, 1)
+        layout.addWidget(self.btn_color_pick, 0, 1)
         
-        layout.addWidget(QLabel("Duration (ms):"), 2, 0)
+        layout.addWidget(QLabel("Duration (ms):"), 1, 0)
         self.drawing_duration_input = QLineEdit("2000")
-        layout.addWidget(self.drawing_duration_input, 2, 1)
+        layout.addWidget(self.drawing_duration_input, 1, 1)
         
+        # Botones de acción, ajustando las filas
         self.btn_save_drawing = QPushButton("💾 Save Current Draw")
-        layout.addWidget(self.btn_save_drawing, 3, 0, 1, 2)
+        layout.addWidget(self.btn_save_drawing, 2, 0, 1, 2)
         
         self.btn_clear_canvas = QPushButton("🗑️ Clear Canvas")
-        layout.addWidget(self.btn_clear_canvas, 4, 0, 1, 2)
+        layout.addWidget(self.btn_clear_canvas, 3, 0, 1, 2)
 
-        layout.setRowStretch(5, 1)
+        layout.setRowStretch(4, 1) # Ajustamos el row stretch
+        self.setLayout(layout)
 
     def _connect_signals(self):
         """Conecta los widgets a las señales de salida del componente."""
-        self.btn_draw_toggle.toggled.connect(self.toggle_drawing_signal)
+        # ⚠️ ELIMINADO: Conexión de self.btn_draw_toggle.toggled
         self.btn_color_pick.clicked.connect(self._select_drawing_color)
         self.btn_save_drawing.clicked.connect(self.save_drawing_request)
         self.btn_clear_canvas.clicked.connect(self.clear_canvas_request)
