@@ -2,7 +2,10 @@
 
 import os 
 import cv2
-from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QColorDialog, QFileDialog
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QColorDialog, 
+    QFileDialog, QVBoxLayout
+)
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap 
 
@@ -14,21 +17,24 @@ from services.video_service import VideoService
 from core.service_manager import ServiceManager 
 from ui.widgets.video_area_widget import VideoAreaWidget
 from ui.widgets.sidebar_widget import SidebarWidget
+from ui.widgets.topbar_widget import TopBarWidget 
 from features.draw.drawing_label import DrawingVideoLabel 
 
 class MainWindow(QMainWindow): 
     """
     Coordinador de la aplicación. Responsable de:
-    1. Componer los widgets (VideoArea, Sidebar).
+    1. Componer los widgets (TopBar, VideoArea, Sidebar).
     2. Conectar las señales de los Widgets con las acciones de los Servicios.
     3. Delegar la lógica de negocio al ServiceManager.
     """
     def __init__(self, video_service: VideoService, service_manager: ServiceManager, parent=None):
-        super().__init__(parent)
         
-        # Inyección de Dependencias
+        # Inyección de Dependencias: Asignar argumentos ANTES de llamar a super().__init__
         self.video_service = video_service
         self.service_manager = service_manager
+        
+        # Llamar al constructor de Qt, pasando SOLO el 'parent'
+        super().__init__(parent)
         
         # Estado
         self.duration_msec = 0
@@ -47,17 +53,34 @@ class MainWindow(QMainWindow):
         """Instancia y organiza los componentes principales de la UI."""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_h_layout = QHBoxLayout(central_widget)
+        main_v_layout = QVBoxLayout(central_widget)
         
-        # 1. Área de Video
-        self.video_area = VideoAreaWidget()
-        main_h_layout.addWidget(self.video_area, 4)
+        # 1. Top Bar
+        self.top_bar = TopBarWidget() 
+        main_v_layout.addWidget(self.top_bar)
 
-        # 2. Sidebar
-        # Obtener el color por defecto del DrawingVideoLabel
+        # Contenedor para Video Area + Sidebar
+        content_h_layout = QHBoxLayout()
+        content_h_layout.setContentsMargins(0, 0, 0, 0) 
+        
+        # 2. Área de Video (4/5 del espacio horizontal)
+        self.video_area = VideoAreaWidget()
+        content_h_layout.addWidget(self.video_area, 4)
+
+        # 3. Sidebar (1/5 del espacio horizontal)
         initial_color = self.video_area.get_drawing_label().current_pen_color 
         self.sidebar = SidebarWidget(self.video_service, self, initial_color)
-        main_h_layout.addWidget(self.sidebar, 1)
+        
+        # Estado inicial del Sidebar basado en el TopBar (Drawing por defecto)
+        is_visible = self.top_bar.btn_toggle_drawing.isChecked() or self.top_bar.btn_toggle_bookmarks.isChecked()
+        self.sidebar.setVisible(is_visible) 
+        if self.top_bar.btn_toggle_drawing.isChecked():
+             self.sidebar.set_current_tab(1) # Drawing es el índice 1
+
+        content_h_layout.addWidget(self.sidebar, 1)
+
+        main_v_layout.addLayout(content_h_layout, 1) # El contenido toma el espacio restante
+
 
     # --- Conexión de Señales y Slots ---
 
@@ -69,8 +92,16 @@ class MainWindow(QMainWindow):
         self.video_service.time_updated_signal.connect(self.handle_time_update)
         self.service_manager.video_loaded_info.connect(self.handle_video_loaded) 
 
-        # 2. Conexiones del VideoAreaWidget (Acciones del usuario en el reproductor)
-        self.video_area.load_video_request.connect(self._select_video_file)
+        # 2. Conexiones de la TOP BAR
+        self.top_bar.load_video_request.connect(self._select_video_file)
+        self.top_bar.toggle_bookmarks_request.connect(
+            lambda checked: self._toggle_sidebar_tab(0, checked) # 0 es el índice de Bookmarks
+        )
+        self.top_bar.toggle_drawing_request.connect(
+            lambda checked: self._toggle_sidebar_tab(1, checked) # 1 es el índice de Drawing
+        )
+        
+        # 3. Conexiones del VideoAreaWidget (Acciones del usuario en el reproductor)
         self.video_area.play_pause_request.connect(self.video_service.toggle_play_pause)
         self.video_area.seek_slider_moved.connect(self.video_service.slider_moved)
         self.video_area.seek_slider_released.connect(self.video_service.seek)
@@ -79,7 +110,7 @@ class MainWindow(QMainWindow):
             lambda: self.sidebar.get_bookmarks_module().add_current_time_bookmark()
         )
         
-        # 3. Conexiones del SidebarWidget (Acciones del usuario en la Feature)
+        # 4. Conexiones del SidebarWidget (Acciones del usuario en la Feature)
         draw_controls = self.sidebar.get_drawing_controls_widget()
         drawing_label = self.video_area.get_drawing_label()
         bookmarks_module = self.sidebar.get_bookmarks_module()
@@ -114,6 +145,18 @@ class MainWindow(QMainWindow):
             self.service_manager.save_drawing_data(current_time, duration, paths_to_save)
             self.video_area.get_drawing_label().update()
             print(f"Dibujo guardado para {VideoService.format_time(current_time)}")
+
+    @Slot(bool)
+    def _toggle_sidebar_tab(self, index: int, checked: bool):
+        """Alterna la visibilidad del sidebar y selecciona la pestaña correcta."""
+        if checked:
+            # Mostrar el sidebar y cambiar la pestaña
+            self.sidebar.setVisible(True)
+            self.sidebar.set_current_tab(index)
+        else:
+            # Ocultar el sidebar si el otro botón no está activo (TopBar maneja el toggle de botones)
+            if not self.top_bar.btn_toggle_bookmarks.isChecked() and not self.top_bar.btn_toggle_drawing.isChecked():
+                self.sidebar.setVisible(False)
 
     @Slot(object)
     def display_frame(self, frame):
