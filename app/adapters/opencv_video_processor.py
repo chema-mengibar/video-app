@@ -3,11 +3,13 @@
 import cv2
 import time
 import os
-from PySide6.QtCore import QThread, Signal, Slot, QObject, QMutex # Se añade QMutex
+from PySide6.QtCore import QThread, Signal, Slot, QObject, QMutex
+
 
 class OpenCVVideoProcessor(QObject):
     """
-    Adaptador de Procesamiento de Video usando OpenCV (La lógica de bajo nivel).
+    Adaptador de Procesamiento de Video usando OpenCV.
+    Maneja la interacción con VideoThread.
     """
     
     frame_ready_signal = Signal(object) 
@@ -48,8 +50,8 @@ class OpenCVVideoProcessor(QObject):
         self.thread.set_quality(factor)
         
     def stop_processing(self):
-        self.thread.stop()
-        self.thread.wait() 
+        if self.thread.isRunning():
+            self.thread.stop()  # Detiene el hilo de forma segura
 
 
 class VideoThread(QThread):
@@ -65,11 +67,11 @@ class VideoThread(QThread):
         self.cap = None 
         self.path = None
         self.playing = False
-        self.running = True
+        self.running = True  # controla el while del hilo
         self.frame_rate = 30.0
         self.duration_msec = 0
         self.frame_skip_factor = 1.0 
-        self.mutex = QMutex() # Inicialización del Mutex
+        self.mutex = QMutex()
 
     @Slot(str)
     def load_video(self, path: str):
@@ -101,14 +103,12 @@ class VideoThread(QThread):
     @Slot(int)
     def seek(self, msec: int):
         if self.cap and self.cap.isOpened():
-            # Bloqueo para la operación de seek
             self.mutex.lock()
             try:
                 self.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
             finally:
                 self.mutex.unlock()
             
-            # Forzar la lectura de un frame (que usará el mismo lock internamente)
             self.read_and_emit_frame() 
             self.time_updated.emit(msec)
 
@@ -121,7 +121,6 @@ class VideoThread(QThread):
         frame = None
         current_msec = 0
         
-        # Bloqueo para la lectura y el set (acceso a self.cap)
         self.mutex.lock()
         try:
             if self.cap and self.cap.isOpened():
@@ -143,7 +142,6 @@ class VideoThread(QThread):
             self.time_updated.emit(current_msec)
             return True
         elif self.cap and not ret: 
-            # Si el video ha llegado al final, emitir 0 para restablecer el tiempo
             self.time_updated.emit(0) 
         return False
 
@@ -152,12 +150,9 @@ class VideoThread(QThread):
             if self.cap and self.cap.isOpened() and self.playing:
                 self.read_and_emit_frame() 
                 
-                # Cálculo de la pausa para mantener la velocidad de reproducción.
                 if self.frame_rate > 0:
-                    delay = (1.0 / self.frame_rate)
-                    # Multiplicar el delay por el número de frames leídos/saltados
                     skip_frames = int(1 / self.frame_skip_factor) if self.frame_skip_factor > 0 else 1
-                    delay = delay * skip_frames
+                    delay = (1.0 / self.frame_rate) * skip_frames
                 else:
                     delay = 0.033 
 
@@ -167,3 +162,13 @@ class VideoThread(QThread):
                 
         if self.cap:
             self.cap.release()
+
+    # --- Nuevo método agregado ---
+    def stop(self):
+        """
+        Detiene el hilo de forma segura.
+        Llamar desde stop_processing() antes de cerrar la ventana.
+        """
+        self.running = False
+        self.quit()
+        self.wait()
