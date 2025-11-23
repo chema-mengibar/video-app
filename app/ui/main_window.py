@@ -113,6 +113,8 @@ class MainWindow(QMainWindow):
         self.video_area.btn_add_bookmark.clicked.connect(
             lambda: self.sidebar.get_bookmarks_module().add_current_time_bookmark()
         )
+
+        self.video_area.btn_screenshot.clicked.connect(self.video_service.save_screenshot)
         
         # 4. Conexiones del SidebarWidget (Acciones del usuario en la Feature)
         draw_controls = self.sidebar.get_drawing_controls_widget()
