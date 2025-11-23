@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap 
 
-# Importaciones de la arquitectura modular
 from ui.styles.theme import DarkTheme 
 
 # Importamos las dependencias (Servicios y Componentes)
@@ -42,10 +41,11 @@ class MainWindow(QMainWindow):
         
         self.setWindowTitle("Reproductor de Video Modular (Refactorizado)")
         self.setGeometry(100, 100, 1400, 800) 
-        self.setStyleSheet(DarkTheme.GLOBAL_STYLES)
+        
         
         self._setup_components()
         self._connect_all()
+        self.setStyleSheet(DarkTheme.GLOBAL_STYLES)
 
     # --- Composición de la UI ---
     
@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         # 3. Sidebar (1/5 del espacio horizontal)
         # Obtenemos el color inicial del label para pasarlo al sidebar
         initial_color = self.video_area.get_drawing_label().current_pen_color 
-        self.sidebar = SidebarWidget(self.video_service, self, initial_color)
+        self.sidebar = SidebarWidget(self.video_service, self, initial_color, self)
         
         # Estado inicial del Sidebar basado en el TopBar (Drawing por defecto)
         is_visible = self.top_bar.btn_toggle_drawing.isChecked() or self.top_bar.btn_toggle_bookmarks.isChecked()

@@ -9,9 +9,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Slot, Qt, QObject, Signal, QPoint 
 
-# 🟢 IMPORTACIÓN NECESARIA: Accedemos al método estático format_time
 from services.video_service import VideoService 
-
+from ui.styles.theme import DarkTheme 
 from PySide6.QtGui import QAction 
 
 class BookmarkEntry(QObject):
@@ -55,11 +54,13 @@ class BookmarksModule(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         
         header = QLabel("Videomarks")
-        header.setStyleSheet("padding: 5px; font-weight: bold;")
+        header.setStyleSheet(DarkTheme.SIDEBAR_HEADER)
         
-        self.btn_add_mark = QPushButton("➕ Add Mark (Current Time)")
-        self.btn_save = QPushButton("💾 Save Marks")
-        self.btn_load = QPushButton("📂 Load Marks")
+        self.btn_save = QPushButton("Save Marks")
+        self.btn_load = QPushButton("Load Marks")
+
+        self.btn_save.setProperty('button_type', 'secondary')
+        self.btn_load.setProperty('button_type', 'secondary')
         
         # Lista de Widgets para los bookmarks
         self.list_widget = QListWidget()
@@ -71,7 +72,7 @@ class BookmarksModule(QWidget):
         control_layout.addWidget(self.btn_load)
         
         main_layout.addWidget(header)
-        main_layout.addWidget(self.btn_add_mark)
+
         main_layout.addLayout(control_layout)
         main_layout.addWidget(self.list_widget)
         
@@ -80,7 +81,6 @@ class BookmarksModule(QWidget):
 
     def connect_signals(self):
         """Conecta las acciones de la UI a los métodos internos y al servicio."""
-        self.btn_add_mark.clicked.connect(self.add_current_time_bookmark)
         self.btn_save.clicked.connect(self.open_save_dialog)
         self.btn_load.clicked.connect(self.open_load_dialog)
         

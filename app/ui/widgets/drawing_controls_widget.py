@@ -28,8 +28,6 @@ class DrawingControlsWidget(QWidget):
     def _setup_ui(self):
         """Construye la interfaz de usuario para los controles."""
         layout = QGridLayout(self)
-        
-        # ⚠️ ELIMINADO: Botón Enable Drawing (0, 0) y (0, 1)
 
         layout.addWidget(QLabel("Pen Color:"), 0, 0)
         self.btn_color_pick = QPushButton("Pick Color")
@@ -42,9 +40,11 @@ class DrawingControlsWidget(QWidget):
         
         # Botones de acción, ajustando las filas
         self.btn_save_drawing = QPushButton("💾 Save Current Draw")
+        self.btn_save_drawing.setProperty('button_type', 'secondary')
         layout.addWidget(self.btn_save_drawing, 2, 0, 1, 2)
         
         self.btn_clear_canvas = QPushButton("🗑️ Clear Canvas")
+        self.btn_clear_canvas.setProperty('button_type', 'secondary')
         layout.addWidget(self.btn_clear_canvas, 3, 0, 1, 2)
 
         layout.setRowStretch(4, 1) # Ajustamos el row stretch
@@ -52,7 +52,6 @@ class DrawingControlsWidget(QWidget):
 
     def _connect_signals(self):
         """Conecta los widgets a las señales de salida del componente."""
-        # ⚠️ ELIMINADO: Conexión de self.btn_draw_toggle.toggled
         self.btn_color_pick.clicked.connect(self._select_drawing_color)
         self.btn_save_drawing.clicked.connect(self.save_drawing_request)
         self.btn_clear_canvas.clicked.connect(self.clear_canvas_request)

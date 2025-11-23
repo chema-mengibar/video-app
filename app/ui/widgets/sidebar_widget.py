@@ -21,7 +21,7 @@ class SidebarWidget(QFrame):
 
         # Asignar objectName para CSS si lo necesitas
         self.setObjectName("sidebar_widget")
-        self.setStyleSheet(DarkTheme.SIDEBAR_CONTAINER)
+        self.setStyleSheet(DarkTheme.GLOBAL_STYLES)
 
         # Inyección de dependencias
         self.video_service = video_service
