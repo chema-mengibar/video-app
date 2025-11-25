@@ -13,6 +13,8 @@ from ui.widgets.video_area_widget import VideoAreaWidget
 from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.topbar_widget import TopBarWidget 
 from features.draw.drawing_label import DrawingVideoLabel 
+from features.timeline.videomarks_module import BookmarksModule 
+
 
 class MainWindow(QMainWindow): 
     """
@@ -44,15 +46,14 @@ class MainWindow(QMainWindow):
         
         # 1. ESTADO CENTRAL DE VISTAS 
         self.active_views = {
-            'left': 'bookmarks',  # CAMBIO: Establecido a 'drawing' para que esté visible al inicio
+            'left': 'bookmarks',  # Vista inicial para el sidebar izquierdo
             'right': 'grids',  # Vista inicial para el sidebar derecho
             'center': 'player'
         }
         
         self.setWindowTitle("Reproductor de Video Modular (Refactorizado)")
         self.setGeometry(100, 100, 1400, 800) 
-        
-        
+
         self._setup_components()
         self._connect_all()
         self.setStyleSheet(DarkTheme.GLOBAL_STYLES)
@@ -61,7 +62,7 @@ class MainWindow(QMainWindow):
         self.sidebar_left.setVisible(self.active_views['left'] is not None)
         self.sidebar_right.setVisible(self.active_views['right'] is not None)
         
-        # CAMBIO: Aseguramos la inicialización del contenido para ambos sidebars si están activos
+        # Aseguramos la inicialización del contenido para ambos sidebars si están activos
         if self.active_views['left']:
             self._update_sidebar_content('left', self.active_views['left'])
             
@@ -92,13 +93,22 @@ class MainWindow(QMainWindow):
         drawing_label = self.video_area.get_drawing_label()
         initial_color = drawing_label.current_pen_color 
 
+        # Creamos la instancia ÚNICA del BookmarksModule
+        self.bookmarks_module = BookmarksModule(
+            self.video_service, 
+            self
+        )
+
+
         # 2. Sidebar Izquierdo (1/5 del espacio horizontal)
         # Se instancia SidebarWidget con el argumento view_location='left'
+        # El widget BookmarksModule REAL se inyecta aquí.
         self.sidebar_left = SidebarWidget(
             self.video_service, 
             self, # parent_app
             initial_color, 
             'left', # Ubicación
+            self.bookmarks_module, # <-- Inyección del widget/lógica real
             self
         )
         content_h_layout.addWidget(self.sidebar_left, 1)
@@ -108,11 +118,15 @@ class MainWindow(QMainWindow):
 
         # 4. Sidebar Derecho (1/5 del espacio horizontal)
         # Se instancia SidebarWidget con el argumento view_location='right'
+        # ¡IMPORTANTE! Para evitar el error de "Un widget, dos padres", 
+        # el SidebarWidget derecho debe añadir un QWidget() en el índice 0.
+        # Esto se gestiona internamente en SidebarWidget.py. 
         self.sidebar_right = SidebarWidget(
             self.video_service, 
             self, # parent_app
             initial_color, 
             'right', # Ubicación
+            self.bookmarks_module, # <-- Inyección de la lógica para sincronización
             self
         )
         
@@ -147,9 +161,9 @@ class MainWindow(QMainWindow):
         self.video_area.seek_slider_released.connect(self.video_service.seek)
         self.video_area.quality_changed.connect(self.video_service.set_quality)
         
-        # Conexión del botón de Bookmark al sidebar DERECHO por defecto
+        # CORRECCIÓN BUG: Usar self.bookmarks_module (la instancia), NO llamarla como función ()
         self.video_area.btn_add_bookmark.clicked.connect(
-            lambda: self.sidebar_right.get_bookmarks_module().add_current_time_bookmark()
+            lambda: self.bookmarks_module.add_current_time_bookmark()
         )
 
         self.video_area.btn_screenshot.clicked.connect(self.video_service.save_screenshot)
@@ -163,15 +177,15 @@ class MainWindow(QMainWindow):
         draw_module_right.color_changed.connect(drawing_label.set_pen_color)
         draw_module_right.save_drawing_request.connect(self.save_current_drawing)
         
-        # Conectamos las señales del módulo de dibujo IZQUIERDO (si estuviera activo)
+        # Conectamos las señales del módulo de dibujo IZQUIERDO
         draw_module_left = self.sidebar_left.get_drawing_module()
         draw_module_left.clear_canvas_request.connect(drawing_label.clear_drawing)
         draw_module_left.color_changed.connect(drawing_label.set_pen_color)
         draw_module_left.save_drawing_request.connect(self.save_current_drawing)
         
-        # Bookmarks (Sincronización Feature -> UI - Asumimos solo el derecho actualiza el ruler)
-        bookmarks_module_right = self.sidebar_right.get_bookmarks_module()
-        bookmarks_module_right.marks_changed.connect(self.update_ruler_marks)
+        # Bookmarks (Sincronización Feature -> UI)
+        # CORRECCIÓN BUG: Usar la instancia self.bookmarks_module directamente
+        self.bookmarks_module.marks_changed.connect(self.update_ruler_marks)
         
         
     # --- Slots (Coordinación y Delegación) ---
@@ -259,9 +273,9 @@ class MainWindow(QMainWindow):
                 self._update_sidebar_content(side, new_view_key)
                 sidebar.setVisible(True)
             else:
-                 print(f"Advertencia: Vista de sidebar desconocida: {new_view_key}")
-                 sidebar.setVisible(False)
-                 self.active_views[side] = None # Reset state if key is unknown
+                print(f"Advertencia: Vista de sidebar desconocida: {new_view_key}")
+                sidebar.setVisible(False)
+                self.active_views[side] = None # Reset state if key is unknown
         else:
             sidebar.setVisible(False)
 
@@ -324,18 +338,19 @@ class MainWindow(QMainWindow):
         
         # Cargar datos de bookmarks después de establecer el directorio
         if success and video_directory:
-            # Bookmarks (Usamos el sidebar derecho como fuente principal de datos)
+            # Bookmarks 
             bm_path = os.path.join(video_directory, "videomarks.json")
-            self.sidebar_right.get_bookmarks_module().load_data_from_file(bm_path)
+            # Usamos self.bookmarks_module directamente
+            self.bookmarks_module.load_data_from_file(bm_path) 
             self.update_ruler_marks()
             
         self.video_area.update_time_display(0, duration_msec)
     
     @Slot()
     def update_ruler_marks(self):
-        """Actualiza el ruler con las marcas obtenidas del BookmarksModule (Derecho)."""
-        # Se asegura de usar el sidebar_right para obtener las marcas, ya que es la vista predeterminada.
-        mark_times = self.sidebar_right.get_bookmarks_module().get_mark_times()
+        """Actualiza el ruler con las marcas obtenidas del BookmarksModule."""
+        # CORRECCIÓN BUG: Usamos self.bookmarks_module (la instancia)
+        mark_times = self.bookmarks_module.get_mark_times()
         self.video_area.get_ruler_widget().update_bookmarks(mark_times)
 
     # --- Funciones de Qt ---
