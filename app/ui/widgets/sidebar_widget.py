@@ -1,19 +1,19 @@
-# src/app/ui/widgets/sidebar_widget.py
-
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QStackedWidget
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QStackedWidget, QLabel # Agregamos QLabel para el placeholder
 from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt
 
 from ui.styles.theme import DarkTheme
 
 # Importaciones de módulos/features
 from features.timeline.videomarks_module import BookmarksModule 
 from features.draw.drawing_module import DrawingModule
-from services.video_service import VideoService  # Para tipado y estructura
+from features.grid.grid_module import GridModule
+from services.video_service import VideoService 
 
 class SidebarWidget(QFrame):
     """
     Contenedor principal para los módulos de funcionalidades (Features).
-    Utiliza QStackedWidget para alternar entre Bookmarks y Drawing Controls.
+    Utiliza QStackedWidget para alternar entre Bookmarks, Drawing Controls y Grids.
     """
 
     def __init__(self, video_service: VideoService, parent_app, initial_color: QColor, parent=None):
@@ -35,7 +35,7 @@ class SidebarWidget(QFrame):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # QStackedWidget para alternar entre Bookmarks y Drawing Controls
+        # QStackedWidget para alternar entre Bookmarks, Drawing Controls y Grids
         self.tabs = QStackedWidget()
 
         # 1. Bookmarks Module (Index 0)
@@ -48,6 +48,13 @@ class SidebarWidget(QFrame):
         # 2. Drawing Controls Widget (Index 1)
         self.drawing_module = DrawingModule(initial_color)
         self.tabs.addWidget(self.drawing_module)
+
+        self.grid_module = GridModule(self.parent_app)
+
+        # 3. Grids Module Placeholder (Index 2)
+       
+        self.tabs.addWidget(self.grid_module)
+
 
         main_layout.addWidget(self.tabs)
 
@@ -62,6 +69,10 @@ class SidebarWidget(QFrame):
         """Retorna la instancia del módulo de Bookmarks."""
         return self.bookmarks_module
 
-    def get_drawing_controls_widget(self) -> DrawingModule:
+    def get_drawing_module(self) -> DrawingModule:
         """Retorna la instancia del widget de control de dibujo."""
         return self.drawing_module
+
+    def get_grid_module(self) -> DrawingModule:
+        """Retorna la instancia del widget de control de dibujo."""
+        return self.grid_module

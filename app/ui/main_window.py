@@ -1,10 +1,8 @@
-# src/app/ui/main_window.py
-
 import os 
 import cv2
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QColorDialog, 
-    QFileDialog, QVBoxLayout
+    QFileDialog, QVBoxLayout, QStackedWidget # Se incluye QStackedWidget para referencia de índices
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap 
@@ -22,7 +20,16 @@ class MainWindow(QMainWindow):
     1. Componer los widgets (TopBar, VideoArea, Sidebar).
     2. Conectar las señales de los Widgets con las acciones de los Servicios.
     3. Delegar la lógica de negocio al ServiceManager.
+    4. **Gestionar el estado central de la UI (active_views).**
     """
+    
+    # Mapeo de vistas del Sidebar a los índices del QStackedWidget interno del Sidebar
+    SIDEBAR_VIEW_MAP = {
+        'bookmarks': 0,
+        'drawing': 1,
+        'grids': 2
+    }
+    
     def __init__(self, video_service: VideoService, service_manager: ServiceManager, parent=None):
         
         # Inyección de Dependencias: Asignar argumentos ANTES de llamar a super().__init__
@@ -36,6 +43,13 @@ class MainWindow(QMainWindow):
         self.duration_msec = 0
         self.current_video_directory = None
         
+        # 1. ESTADO CENTRAL DE VISTAS (Refactorizado)
+        self.active_views = {
+            'left': None,
+            'right': 'bookmarks',  # Vista inicial para el sidebar derecho
+            'center': 'player'
+        }
+        
         self.setWindowTitle("Reproductor de Video Modular (Refactorizado)")
         self.setGeometry(100, 100, 1400, 800) 
         
@@ -43,6 +57,11 @@ class MainWindow(QMainWindow):
         self._setup_components()
         self._connect_all()
         self.setStyleSheet(DarkTheme.GLOBAL_STYLES)
+        
+        # Inicializa la UI según el estado central
+        self.sidebar.setVisible(True)
+        self._handle_right_sidebar_change(self.active_views['right'])
+        
 
     # --- Composición de la UI ---
     
@@ -56,7 +75,6 @@ class MainWindow(QMainWindow):
         
         # 1. Top Bar
         self.top_bar = TopBarWidget() 
-      
         main_v_layout.addWidget(self.top_bar)
 
         # Contenedor para Video Area + Sidebar
@@ -69,15 +87,12 @@ class MainWindow(QMainWindow):
 
         # 3. Sidebar (1/5 del espacio horizontal)
         # Obtenemos el color inicial del label para pasarlo al sidebar
-        initial_color = self.video_area.get_drawing_label().current_pen_color 
+        drawing_label = self.video_area.get_drawing_label()
+        initial_color = drawing_label.current_pen_color 
+        
+        # Inicializa el Sidebar con su vista predeterminada
         self.sidebar = SidebarWidget(self.video_service, self, initial_color, self)
         
-        # Estado inicial del Sidebar basado en el TopBar (Drawing por defecto)
-        is_visible = self.top_bar.btn_toggle_drawing.isChecked() or self.top_bar.btn_toggle_bookmarks.isChecked()
-        self.sidebar.setVisible(is_visible) 
-        if self.top_bar.btn_toggle_drawing.isChecked():
-             self.sidebar.set_current_tab(1) # Drawing es el índice 1
-
         content_h_layout.addWidget(self.sidebar, 1)
 
         main_v_layout.addLayout(content_h_layout, 1) # El contenido toma el espacio restante
@@ -94,14 +109,10 @@ class MainWindow(QMainWindow):
         self.service_manager.video_loaded_info.connect(self.handle_video_loaded) 
 
         # 2. Conexiones de la TOP BAR
-        # La TopBar solo pide alternar la pestaña, la lógica de activación está en _toggle_sidebar_tab.
         self.top_bar.load_video_request.connect(self._select_video_file)
-        self.top_bar.toggle_bookmarks_request.connect(
-            lambda checked: self._toggle_sidebar_tab(0, checked) # 0 es el índice de Bookmarks
-        )
-        self.top_bar.toggle_drawing_request.connect(
-            lambda checked: self._toggle_sidebar_tab(1, checked) # 1 es el índice de Drawing
-        )
+        
+        # CONEXIÓN CENTRALIZADA (Reemplaza toggle_xxx_request)
+        self.top_bar.view_change_request.connect(self._handle_right_sidebar_change)
         
         # 3. Conexiones del VideoAreaWidget (Acciones del usuario en el reproductor)
         drawing_label = self.video_area.get_drawing_label() # Necesario para las conexiones
@@ -117,14 +128,13 @@ class MainWindow(QMainWindow):
         self.video_area.btn_screenshot.clicked.connect(self.video_service.save_screenshot)
         
         # 4. Conexiones del SidebarWidget (Acciones del usuario en la Feature)
-        draw_controls = self.sidebar.get_drawing_controls_widget()
+        draw_module = self.sidebar.get_drawing_module()
         bookmarks_module = self.sidebar.get_bookmarks_module()
 
         # Dibujo (Las acciones de control)
-        # La señal toggle_drawing_signal fue eliminada del draw_controls.
-        draw_controls.clear_canvas_request.connect(drawing_label.clear_drawing)
-        draw_controls.color_changed.connect(drawing_label.set_pen_color)
-        draw_controls.save_drawing_request.connect(self.save_current_drawing)
+        draw_module.clear_canvas_request.connect(drawing_label.clear_drawing)
+        draw_module.color_changed.connect(drawing_label.set_pen_color)
+        draw_module.save_drawing_request.connect(self.save_current_drawing)
         
         # Bookmarks (Sincronización Feature -> UI)
         bookmarks_module.marks_changed.connect(self.update_ruler_marks)
@@ -144,44 +154,52 @@ class MainWindow(QMainWindow):
         """Coordina la obtención de datos y delega el guardado al ServiceManager."""
         current_time = self.video_service.get_current_time()
         paths_to_save = self.video_area.get_drawing_label().get_finished_paths()
-        duration = self.sidebar.get_drawing_controls_widget().get_duration()
+        duration = self.sidebar.get_drawing_module().get_duration()
 
         if paths_to_save:
             self.service_manager.save_drawing_data(current_time, duration, paths_to_save)
             self.video_area.get_drawing_label().update()
             print(f"Dibujo guardado para {VideoService.format_time(current_time)}")
 
-    @Slot(bool)
-    def _toggle_sidebar_tab(self, index: int, checked: bool):
+    @Slot(str)
+    def _handle_right_sidebar_change(self, new_view_key: str):
         """
-        Alterna la visibilidad del sidebar y selecciona la pestaña.
-        Contiene la lógica de REACCIÓN para activar/desactivar el dibujo.
+        Maneja el evento de cambio de vista desde TopBar.
+        1. Actualiza el estado central de la aplicación.
+        2. Actualiza la UI de TopBar (estado visual del botón).
+        3. Actualiza el contenido del Sidebar.
+        4. Habilita/Deshabilita el dibujo como efecto secundario.
         """
         drawing_label = self.video_area.get_drawing_label()
 
-        if checked:
-            # 1. Mostrar el sidebar y cambiar la pestaña (Responsabilidad de UI)
-            self.sidebar.setVisible(True)
+        # 1. Solo actualiza si la vista realmente cambia
+        if self.active_views['right'] == new_view_key:
+            return
+
+        print(f"Cambio de vista solicitada: {new_view_key}")
+
+        # 2. Actualiza el estado central
+        self.active_views['right'] = new_view_key
+        
+        # 3. Actualiza el estado visual de los botones del TopBar
+        self.top_bar.set_active_view(new_view_key)
+        
+        # 4. Actualiza el contenido del Sidebar (cambio de pestaña)
+        if new_view_key in self.SIDEBAR_VIEW_MAP:
+            index = self.SIDEBAR_VIEW_MAP[new_view_key]
             self.sidebar.set_current_tab(index)
+            self.sidebar.setVisible(True) # Mantiene el sidebar visible si hay una vista seleccionada
             
-            # 2. Activar el dibujo si se selecciona 'Drawing Controls' (índice 1)
-            if index == 1:
+            # 5. Control de la funcionalidad de dibujo
+            if new_view_key == 'drawing':
                 drawing_label.enable_drawing(True)
             else:
-                # Asegurarse de desactivar si se activa Bookmarks
                 drawing_label.enable_drawing(False)
-                
         else:
-            # Ocultar el sidebar si el otro botón no está activo
-            is_bookmarks_checked = self.top_bar.btn_toggle_bookmarks.isChecked()
-            is_drawing_checked = self.top_bar.btn_toggle_drawing.isChecked()
+            print(f"Advertencia: Vista de sidebar desconocida o no manejada: {new_view_key}")
+            # Aquí podrías poner lógica para ocultar el sidebar si new_view_key fuera None o 'hide'
+            # self.sidebar.setVisible(False)
 
-            if not is_bookmarks_checked and not is_drawing_checked:
-                self.sidebar.setVisible(False)
-                
-            # 3. Siempre desactivar el dibujo si se deselecciona la pestaña de dibujo (índice 1)
-            if index == 1:
-                drawing_label.enable_drawing(False)
 
     @Slot(object)
     def display_frame(self, frame):

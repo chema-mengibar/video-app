@@ -1,5 +1,3 @@
-# src/app/ui/widgets/topbar_widget.py
-
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton
 from PySide6.QtCore import Qt, Signal, Slot, QSize
 from PySide6.QtGui import QIcon 
@@ -9,13 +7,17 @@ class TopBarWidget(QFrame):
     """
     Barra superior que contiene los controles principales de la aplicación:
     - Botón Load Video (izquierda)
-    - Botones toggle para Sidebar (derecha)
+    - Botones para la selección de vista de Sidebar (derecha)
+
+    NOTA: Este widget NO maneja la lógica de exclusividad; simplemente emite
+    una señal con el identificador de la vista solicitada. El estado visual
+    activo se gestiona mediante la propiedad 'active-view' y CSS.
     """
 
     # Señales emitidas a la MainWindow
     load_video_request = Signal()
-    toggle_bookmarks_request = Signal(bool)
-    toggle_drawing_request = Signal(bool)
+    # Nueva señal que emite la clave de la vista que se desea activar
+    view_change_request = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,38 +42,63 @@ class TopBarWidget(QFrame):
 
         layout.addWidget(self.btn_load_video)
 
-        # Botones toggle (derecha)
+        # Botones de selección de vista (derecha)
         self.btn_toggle_bookmarks = QPushButton("Marks")
         self.btn_toggle_drawing = QPushButton("Draw")
+        self.btn_toggle_grids = QPushButton("Grid")
 
-        self.btn_toggle_bookmarks.setCheckable(True)
-        self.btn_toggle_drawing.setCheckable(True)
-
-        # Inicial Tab
-        self.btn_toggle_bookmarks.setChecked(True)
+        # Configuración de botones como botones normales.
+        # El estado activo visual se gestiona EXCLUSIVAMENTE mediante setProperty('active-view').
+        self.btn_toggle_bookmarks.setProperty('is-active', True)
+        self.btn_toggle_drawing.setProperty('is-active', False)
+        self.btn_toggle_grids.setProperty('is-active', False)
 
         layout.addStretch(1)  # Empuja los toggles hacia la derecha
+
         layout.addWidget(self.btn_toggle_bookmarks)
         layout.addWidget(self.btn_toggle_drawing)
+        layout.addWidget(self.btn_toggle_grids)
 
     def connect_signals(self):
-        # Conexiones externas
+        # Conexión principal del botón de cargar video
         self.btn_load_video.clicked.connect(self.load_video_request.emit)
-        self.btn_toggle_bookmarks.toggled.connect(self.toggle_bookmarks_request.emit)
-        self.btn_toggle_drawing.toggled.connect(self.toggle_drawing_request.emit)
+        
+        # Conexiones que emiten la clave de la vista solicitada cuando se hace CLICK
+        # Usamos la señal .clicked para la acción de cambio de vista.
+        self.btn_toggle_bookmarks.clicked.connect(
+            lambda: self.view_change_request.emit('bookmarks')
+        )
+        self.btn_toggle_drawing.clicked.connect(
+            lambda: self.view_change_request.emit('drawing')
+        )
+        self.btn_toggle_grids.clicked.connect(
+            lambda: self.view_change_request.emit('grids')
+        )
+        
+    # Método público para que MainWindow pueda actualizar el estado checkeado de los botones
+    @Slot(str)
+    def set_active_view(self, key: str):
+        """
+        Establece el estado visual 'activo' de los botones mediante la propiedad 'active-view'.
+        Esto permite que MainWindow controle la exclusividad visual.
+        """
+        all_buttons = {
+            'bookmarks': self.btn_toggle_bookmarks,
+            'drawing': self.btn_toggle_drawing,
+            'grids': self.btn_toggle_grids
+        }
+        
+        for name, button in all_buttons.items():
+            is_active = (name == key)
+            
+            # Bloqueamos las señales antes de actualizar la propiedad para evitar
+            # que cualquier cambio de estado no deseado active recursiones.
+            button.blockSignals(True)
+            
+            # 1. Actualiza la propiedad personalizada
+            button.setProperty('is-active', is_active)
+            
+            # 2. Fuerza al sistema de estilos a reevaluar y aplicar el nuevo estilo CSS
+            button.style().polish(button)
 
-        # Comportamiento tipo "radio button"
-        self.btn_toggle_bookmarks.toggled.connect(self._handle_toggle_bookmarks)
-        self.btn_toggle_drawing.toggled.connect(self._handle_toggle_drawing)
-
-    def _handle_toggle_bookmarks(self, checked: bool):
-        if checked:
-            self.btn_toggle_drawing.setChecked(False)
-        elif not self.btn_toggle_drawing.isChecked():
-            self.btn_toggle_drawing.setChecked(True)
-
-    def _handle_toggle_drawing(self, checked: bool):
-        if checked:
-            self.btn_toggle_bookmarks.setChecked(False)
-        elif not self.btn_toggle_bookmarks.isChecked():
-            self.btn_toggle_bookmarks.setChecked(True)
+            button.blockSignals(False)

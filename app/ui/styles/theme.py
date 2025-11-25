@@ -37,6 +37,11 @@ class DarkTheme:
         QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}
         QPushButton:checked {{ background-color: {BASE_LIGHT}; }}
 
+        QPushButton[is-active="true"] {{
+            background-color:{BASE_LIGHT}
+       
+        }}
+
         QPushButton[button_type="secondary"] {{
             background-color: {SECONDARY_COLOR}; 
             color: {TEXT_LIGHT};
