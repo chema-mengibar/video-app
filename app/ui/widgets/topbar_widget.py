@@ -43,19 +43,19 @@ class TopBarWidget(QFrame):
         layout.addWidget(self.btn_load_video)
 
         # Botones de selección de vista (derecha)
-        self.btn_toggle_bookmarks = QPushButton("Marks")
+        # self.btn_toggle_bookmarks = QPushButton("Marks")
         self.btn_toggle_drawing = QPushButton("Draw")
         self.btn_toggle_grids = QPushButton("Grid")
 
         # Configuración de botones como botones normales.
         # El estado activo visual se gestiona EXCLUSIVAMENTE mediante setProperty('active-view').
-        self.btn_toggle_bookmarks.setProperty('is-active', True)
+        # self.btn_toggle_bookmarks.setProperty('is-active', True)
         self.btn_toggle_drawing.setProperty('is-active', False)
         self.btn_toggle_grids.setProperty('is-active', False)
 
         layout.addStretch(1)  # Empuja los toggles hacia la derecha
 
-        layout.addWidget(self.btn_toggle_bookmarks)
+        # layout.addWidget(self.btn_toggle_bookmarks)
         layout.addWidget(self.btn_toggle_drawing)
         layout.addWidget(self.btn_toggle_grids)
 
@@ -65,9 +65,9 @@ class TopBarWidget(QFrame):
         
         # Conexiones que emiten la clave de la vista solicitada cuando se hace CLICK
         # Usamos la señal .clicked para la acción de cambio de vista.
-        self.btn_toggle_bookmarks.clicked.connect(
-            lambda: self.view_change_request.emit('bookmarks')
-        )
+        # self.btn_toggle_bookmarks.clicked.connect(
+        #     lambda: self.view_change_request.emit('bookmarks')
+        # )
         self.btn_toggle_drawing.clicked.connect(
             lambda: self.view_change_request.emit('drawing')
         )
@@ -83,7 +83,7 @@ class TopBarWidget(QFrame):
         Esto permite que MainWindow controle la exclusividad visual.
         """
         all_buttons = {
-            'bookmarks': self.btn_toggle_bookmarks,
+            # 'bookmarks': self.btn_toggle_bookmarks,
             'drawing': self.btn_toggle_drawing,
             'grids': self.btn_toggle_grids
         }
