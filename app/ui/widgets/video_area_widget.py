@@ -79,9 +79,9 @@ class VideoAreaWidget(QWidget):
         self.time_label = QLabel(VideoService.format_time(0) + " / " + VideoService.format_time(0))
         
         self.quality_combo = QComboBox()
-        self.quality_combo.addItem("High (1x)", 1.0)
-        self.quality_combo.addItem("Medium (0.5x)", 0.5)
-        self.quality_combo.addItem("Low (0.1x)", 0.1)
+        self.quality_combo.addItem("Normal (1x)", 1.0)
+        self.quality_combo.addItem("Fast (0.5x)", 0.5)
+        self.quality_combo.addItem("Very Fast (0.1x)", 0.1)
         
 
         control_h_layout.addWidget(self.btn_play)

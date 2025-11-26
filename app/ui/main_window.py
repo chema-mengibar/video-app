@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
         # 1. ESTADO CENTRAL DE VISTAS 
         self.active_views = {
             'left': 'bookmarks',  # Vista inicial para el sidebar izquierdo
-            'right': 'grids',  # Vista inicial para el sidebar derecho
+            'right': 'drawing',  # Vista inicial para el sidebar derecho
             'center': 'player'
         }
         
