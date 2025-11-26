@@ -9,7 +9,9 @@ from ui.styles.theme import DarkTheme
 from features.timeline.videomarks_module import BookmarksModule 
 from features.draw.drawing_module import DrawingModule
 from features.grid.grid_module import GridModule
+from features.cut.cut_module import CutModule
 from services.video_service import VideoService 
+
 
 class SidebarWidget(QFrame):
     """
@@ -74,6 +76,10 @@ class SidebarWidget(QFrame):
         self.grid_module = GridModule(self.parent_app)
         self.tabs.addWidget(self.grid_module)
 
+        # 4. Cut Module (Index 3)
+        self.cut_module = CutModule(self.video_service, self.parent_app)
+        self.tabs.addWidget(self.cut_module)
+
         main_layout.addWidget(self.tabs)
 
     # --- Interfaz para MainWindow ---
@@ -93,8 +99,7 @@ class SidebarWidget(QFrame):
         return self.grid_module
 
     def get_bookmarks_module(self) -> BookmarksModule:
-        """
-        Retorna la instancia lógica y única del módulo de bookmarks 
-        (inyectada en __init__), independientemente de qué lado contenga el widget visual.
-        """
         return self._bookmarks_module
+
+    def get_cut_module(self) -> CutModule:
+        return self.cut_module

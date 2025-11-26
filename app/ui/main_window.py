@@ -29,7 +29,8 @@ class MainWindow(QMainWindow):
     SIDEBAR_VIEW_MAP = {
         'bookmarks': 0,
         'drawing': 1,
-        'grids': 2
+        'grids': 2,
+        'cut': 3
     }
     
     def __init__(self, video_service: VideoService, service_manager: ServiceManager, parent=None):
@@ -47,7 +48,7 @@ class MainWindow(QMainWindow):
         # 1. ESTADO CENTRAL DE VISTAS 
         self.active_views = {
             'left': 'bookmarks',  # Vista inicial para el sidebar izquierdo
-            'right': 'drawing',  # Vista inicial para el sidebar derecho
+            'right': 'cut',  # Vista inicial para el sidebar derecho
             'center': 'player'
         }
         

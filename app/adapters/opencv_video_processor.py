@@ -2,10 +2,10 @@
 
 import cv2
 import os
-from PySide6.QtCore import QThread, Signal, Slot, QObject, QMutex
+from PySide6.QtCore import QThread, Signal, Slot, QObject, QMutex, Qt, QMetaObject, Q_ARG
 from typing import Optional
 import numpy as np
-
+import time
 
 class VideoThread(QThread):
     frame_ready = Signal(object)
@@ -14,8 +14,8 @@ class VideoThread(QThread):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.cap = None
-        self.path = None
+        self.cap: Optional[cv2.VideoCapture] = None
+        self.path: Optional[str] = None
         self.playing = False
         self.running = True
         self.frame_rate = 30.0
@@ -28,6 +28,7 @@ class VideoThread(QThread):
 
     @Slot(str)
     def load_video(self, path: str):
+        """Carga un video y emite información de carga."""
         if not os.path.exists(path):
             self.video_loaded_info.emit(False, 0, path)
             return
@@ -50,46 +51,49 @@ class VideoThread(QThread):
 
     @Slot(bool)
     def set_playing(self, play: bool):
+        """Inicia o pausa la reproducción."""
         self.playing = play
 
     @Slot(int)
     def seek(self, msec: int):
+        """
+        Actualiza la posición del video.
+        No bloquea la UI: solo ajusta la posición y deja que run() emita el frame.
+        """
         self.mutex.lock()
         try:
             if self.cap:
                 self.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
-                self.read_and_emit_frame()
+                self._current_msec = msec
         finally:
             self.mutex.unlock()
 
     @Slot(float)
     def set_quality(self, factor: float):
+        """Ajusta el factor de saltos de frames para control de calidad."""
         self.frame_skip_factor = max(0.1, factor)
 
-    def read_and_emit_frame(self):
+    def read_frame(self) -> bool:
+        """Lee un solo frame y emite señales, seguro para hilos."""
         if not (self.cap and self.cap.isOpened()):
             return False
 
         self.mutex.lock()
         try:
-            skip = max(1, int(1 / self.frame_skip_factor))
+            skip_frames = max(1, int(1 / self.frame_skip_factor))
             frame = None
             ret = False
-            # Leer N frames según skip
-            skip_frames = int(1 / self.frame_skip_factor) if self.frame_skip_factor > 0 else 1
-            
             for _ in range(skip_frames):
                 ret, frame = self.cap.read()
                 if not ret:
-                    # Fin de video: reiniciar
+                    # Fin de video: reiniciar desde 0
                     self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     ret, frame = self.cap.read()
                     break
 
             if ret:
-                current_msec = int(self.cap.get(cv2.CAP_PROP_POS_MSEC))
                 self._last_frame = frame.copy()
-                self._current_msec = current_msec
+                self._current_msec = int(self.cap.get(cv2.CAP_PROP_POS_MSEC))
         finally:
             self.mutex.unlock()
 
@@ -98,15 +102,35 @@ class VideoThread(QThread):
             self.time_updated.emit(self._current_msec)
         return ret
 
+    @Slot(int)
+    def seek_in_thread(self, msec: int):
+        """
+        Método seguro para leer un frame al hacer seek.
+        Llamar desde QMetaObject.invokeMethod para no bloquear UI.
+        """
+        if not self.cap:
+            return
+        self.mutex.lock()
+        try:
+            self.cap.set(cv2.CAP_PROP_POS_MSEC, msec)
+            ret, frame = self.cap.read()
+            if ret:
+                self._last_frame = frame.copy()
+                self._current_msec = int(self.cap.get(cv2.CAP_PROP_POS_MSEC))
+        finally:
+            self.mutex.unlock()
+
+        if ret:
+            self.frame_ready.emit(frame)
+            self.time_updated.emit(self._current_msec)
+
     def run(self):
+        """Bucle principal del hilo de video."""
         while self.running:
             if self.cap and self.cap.isOpened() and self.playing:
-                import time
                 start = time.perf_counter()
-                self.read_and_emit_frame()
+                self.read_frame()
                 elapsed = time.perf_counter() - start
-
-                # Delay por frame real
                 delay = max(0, (1.0 / self.frame_rate) - elapsed)
                 self.msleep(int(delay * 1000))
             else:
@@ -116,17 +140,20 @@ class VideoThread(QThread):
             self.cap.release()
 
     def stop(self):
+        """Detiene el hilo."""
         self.running = False
         self.quit()
         self.wait()
 
     def get_last_frame(self) -> Optional[np.ndarray]:
+        """Devuelve una copia del último frame leído."""
         self.mutex.lock()
         frame = self._last_frame.copy() if self._last_frame is not None else None
         self.mutex.unlock()
         return frame
 
     def get_current_time_msec(self) -> int:
+        """Devuelve el tiempo actual en msec."""
         self.mutex.lock()
         t = self._current_msec
         self.mutex.unlock()
@@ -164,7 +191,8 @@ class OpenCVVideoProcessor(QObject):
         self.thread.set_playing(play)
 
     def seek(self, msec: int):
-        self.thread.seek(msec)
+        """Busca un tiempo específico y lee el frame en el hilo."""
+        QMetaObject.invokeMethod(self.thread, "seek_in_thread", Qt.QueuedConnection, Q_ARG(int, msec))
 
     def set_quality(self, factor: float):
         self.thread.set_quality(factor)

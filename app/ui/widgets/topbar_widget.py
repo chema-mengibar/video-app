@@ -46,18 +46,21 @@ class TopBarWidget(QFrame):
         # self.btn_toggle_bookmarks = QPushButton("Marks")
         self.btn_toggle_drawing = QPushButton("Draw")
         self.btn_toggle_grids = QPushButton("Grid")
+        self.btn_toggle_cut = QPushButton("Cut")
 
         # Configuración de botones como botones normales.
         # El estado activo visual se gestiona EXCLUSIVAMENTE mediante setProperty('active-view').
         # self.btn_toggle_bookmarks.setProperty('is-active', True)
         self.btn_toggle_drawing.setProperty('is-active', False)
         self.btn_toggle_grids.setProperty('is-active', False)
+        self.btn_toggle_cut.setProperty('is-active', False)
 
         layout.addStretch(1)  # Empuja los toggles hacia la derecha
 
         # layout.addWidget(self.btn_toggle_bookmarks)
         layout.addWidget(self.btn_toggle_drawing)
         layout.addWidget(self.btn_toggle_grids)
+        layout.addWidget(self.btn_toggle_cut)
 
     def connect_signals(self):
         # Conexión principal del botón de cargar video
@@ -74,6 +77,9 @@ class TopBarWidget(QFrame):
         self.btn_toggle_grids.clicked.connect(
             lambda: self.view_change_request.emit('grids')
         )
+        self.btn_toggle_cut.clicked.connect(
+            lambda: self.view_change_request.emit('cut')
+        )
         
     # Método público para que MainWindow pueda actualizar el estado checkeado de los botones
     @Slot(str)
@@ -85,7 +91,8 @@ class TopBarWidget(QFrame):
         all_buttons = {
             # 'bookmarks': self.btn_toggle_bookmarks,
             'drawing': self.btn_toggle_drawing,
-            'grids': self.btn_toggle_grids
+            'grids': self.btn_toggle_grids,
+            'cut': self.btn_toggle_cut
         }
         
         for name, button in all_buttons.items():
