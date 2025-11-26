@@ -169,10 +169,13 @@ class VideoService(QObject):
         if end_msec <= start_msec:
             print("VideoService: Tiempo final debe ser mayor que inicial.")
             return
+        clips_dir = os.path.join(self.video_directory, f"{self.video_filename_base}__clips")
+        os.makedirs(clips_dir, exist_ok=True)
+
         if output_filename is None:
             output_filename = os.path.join(
-                self.video_directory,
-                f"{self.video_filename_base}_clip_{start_msec}_{end_msec}.mp4"
+                clips_dir,
+                f"clip__{self.video_filename_base}__{start_msec}_{end_msec}.mp4"
             )
         self._clip_thread = ClipSaveThread(self.video_path, start_msec, end_msec, output_filename)
         self._clip_thread.finished_signal.connect(lambda path: print(f"VideoService: Clip guardado en {path}"))
