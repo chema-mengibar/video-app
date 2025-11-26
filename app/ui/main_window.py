@@ -101,8 +101,6 @@ class MainWindow(QMainWindow):
 
 
         # 2. Sidebar Izquierdo (1/5 del espacio horizontal)
-        # Se instancia SidebarWidget con el argumento view_location='left'
-        # El widget BookmarksModule REAL se inyecta aquí.
         self.sidebar_left = SidebarWidget(
             self.video_service, 
             self, # parent_app
@@ -117,10 +115,6 @@ class MainWindow(QMainWindow):
         content_h_layout.addWidget(self.video_area, 4)
 
         # 4. Sidebar Derecho (1/5 del espacio horizontal)
-        # Se instancia SidebarWidget con el argumento view_location='right'
-        # ¡IMPORTANTE! Para evitar el error de "Un widget, dos padres", 
-        # el SidebarWidget derecho debe añadir un QWidget() en el índice 0.
-        # Esto se gestiona internamente en SidebarWidget.py. 
         self.sidebar_right = SidebarWidget(
             self.video_service, 
             self, # parent_app
