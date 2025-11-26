@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QMainWindow
 from ui.styles.theme import DarkTheme
 
 # Importaciones de módulos/features 
-from features.timeline.videomarks_module import BookmarksModule 
+from features.marks.videomarks_module import VideoMarksModule 
 from features.draw.drawing_module import DrawingModule
 from features.grid.grid_module import GridModule
 from features.cut.cut_module import CutModule
@@ -16,8 +16,8 @@ from services.video_service import VideoService
 class SidebarWidget(QFrame):
     """
     Contenedor principal para los módulos de funcionalidades (Features).
-    Utiliza QStackedWidget para alternar entre Bookmarks, Drawing Controls y Grids.
-    Controla la inyección del BookmarksModule para evitar el error de "widget parenting".
+    Utiliza QStackedWidget para alternar entre videomarks, Drawing Controls y Grids.
+    Controla la inyección del VideoMarksModule para evitar el error de "widget parenting".
     """
 
     def __init__(self, 
@@ -25,7 +25,7 @@ class SidebarWidget(QFrame):
                  parent_app: QMainWindow, # El coordinador (MainWindow)
                  initial_color: QColor, 
                  view_location: str, # 'left' o 'right'
-                 bookmarks_module: BookmarksModule, # Instancia única de BookmarksModule
+                 videomarks_module: VideoMarksModule, # Instancia única de VideoMarksModule
                  parent=None
                  ):
         
@@ -38,16 +38,16 @@ class SidebarWidget(QFrame):
         self.video_service = video_service
         self.parent_app = parent_app 
         self.view_location = view_location
-        # Guardamos la referencia a la instancia única de Bookmarks (lógica)
-        self._bookmarks_module = bookmarks_module 
+        # Guardamos la referencia a la instancia única de videomarks (lógica)
+        self._videomarks_module = videomarks_module 
         
         # Pasamos la instancia a setup_ui para decidir si añadir el widget real o un placeholder
-        self.setup_ui(initial_color, self._bookmarks_module)
+        self.setup_ui(initial_color, self._videomarks_module)
 
-    def setup_ui(self, initial_color: QColor, bookmarks_module: BookmarksModule):
+    def setup_ui(self, initial_color: QColor, videomarks_module: VideoMarksModule):
         """
         Configura la disposición principal con QStackedWidget. 
-        Añade el widget real de Bookmarks solo si view_location es 'left'.
+        Añade el widget real de videomarks solo si view_location es 'left'.
         """
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -56,15 +56,15 @@ class SidebarWidget(QFrame):
         # QStackedWidget para alternar entre módulos
         self.tabs = QStackedWidget()
 
-        # 1. Bookmarks Module (Index 0)
-        # Solo el sidebar 'left' debe contener el widget BookmarksModule real 
+        # 1. videomarks Module (Index 0)
+        # Solo el sidebar 'left' debe contener el widget VideoMarksModule real 
         # para que Qt no lo mueva. El 'right' usa un placeholder para mantener el índice.
         if self.view_location == 'left':
-            self.tabs.addWidget(bookmarks_module)
+            self.tabs.addWidget(videomarks_module)
         else:
             # Placeholder vacío para ocupar el índice 0 en el lado derecho
             placeholder = QWidget()
-            placeholder.setObjectName("BookmarksPlaceholder")
+            placeholder.setObjectName("videomarksPlaceholder")
             self.tabs.addWidget(placeholder)
 
 
@@ -98,8 +98,8 @@ class SidebarWidget(QFrame):
         """Retorna la instancia del módulo de Grid."""
         return self.grid_module
 
-    def get_bookmarks_module(self) -> BookmarksModule:
-        return self._bookmarks_module
+    def get_videomarks_module(self) -> VideoMarksModule:
+        return self._videomarks_module
 
     def get_cut_module(self) -> CutModule:
         return self.cut_module

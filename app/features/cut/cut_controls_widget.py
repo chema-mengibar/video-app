@@ -2,7 +2,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
     QLineEdit, QLabel, QGroupBox
 )
-from PySide6.QtCore import Signal, Slot, Qt
+from PySide6.QtGui import QIcon 
+from PySide6.QtCore import Signal, Slot, Qt, QSize
 
 class CutControlsWidget(QWidget):
     """
@@ -25,15 +26,22 @@ class CutControlsWidget(QWidget):
     def _create_time_input_row(self, initial_time: str) -> tuple[QHBoxLayout, QLineEdit, QPushButton]:
         h_layout = QHBoxLayout()
         h_layout.setContentsMargins(0, 0, 0, 0)
+        
         time_edit = QLineEdit(initial_time)
         time_edit.setFixedWidth(100)
         time_edit.setAlignment(Qt.AlignCenter)
-        btn_use = QPushButton("u")
+
+        btn_use = QPushButton()
+        btn_use.setIcon(QIcon("assets/icons/chrono.svg"))
+        btn_use.setIconSize(QSize(12, 12))
+        btn_use.setToolTip("Use current time")
         btn_use.setFixedSize(25, 25)
         btn_use.setObjectName("SmallActionButton")
+       
         h_layout.addWidget(time_edit)
         h_layout.addWidget(btn_use)
         h_layout.addStretch(1)
+        
         return h_layout, time_edit, btn_use
 
     def _setup_ui(self):
@@ -44,6 +52,8 @@ class CutControlsWidget(QWidget):
         title = QLabel("Corte de Video")
         title.setObjectName("SidebarTitle")
         main_layout.addWidget(title)
+
+        
 
         self.time_inputs = {}
 

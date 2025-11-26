@@ -14,7 +14,7 @@ class TimelineRuler(QWidget):
         self.duration_msec = 0
         self.current_msec = 0
         # Ahora espera una lista simple de msec desde el service (simplificado)
-        self.bookmarks_msec = [] 
+        self.videomarks_msec = [] 
 
         self.setStyleSheet(DarkTheme.TIMELINE_RULER)
         
@@ -24,9 +24,9 @@ class TimelineRuler(QWidget):
     def sizeHint(self):
         return QSize(500, 15)
 
-    def update_bookmarks(self, marks_msec: list):
+    def update_videomarks(self, marks_msec: list):
         """Actualiza la lista de msec para los videomarks y fuerza el redibujo."""
-        self.bookmarks_msec = marks_msec
+        self.videomarks_msec = marks_msec
         self.update() # Forzar el redibujo
 
     def paintEvent(self, event):
@@ -76,7 +76,7 @@ class TimelineRuler(QWidget):
         vm_rect_height = 12 
         vm_rect_width = 3 
         
-        for msec in self.bookmarks_msec: # Usar la lista simple de msec
+        for msec in self.videomarks_msec: # Usar la lista simple de msec
             x = int(msec * pixels_per_msec)
             painter.drawRect(x - (vm_rect_width // 2), height - vm_rect_height, vm_rect_width, vm_rect_height)
 

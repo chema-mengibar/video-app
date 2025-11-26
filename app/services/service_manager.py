@@ -40,8 +40,8 @@ class ServiceManager(QObject):
         self.video_loaded_info.emit(success, duration_msec, video_directory)
         
     def _load_associated_data(self, video_directory: str):
-        """Carga automáticamente los datos de dibujo y bookmarks."""
-        # Aquí solo cargamos el DrawService. La MainWindow cargará los bookmarks después
+        """Carga automáticamente los datos de dibujo y videomarks."""
+        # Aquí solo cargamos el DrawService. La MainWindow cargará los videomarks después
         # de recibir la señal de video_loaded_info.
         
         draw_path = os.path.join(video_directory, "drawings.json")

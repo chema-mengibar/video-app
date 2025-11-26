@@ -13,7 +13,7 @@ from services.video_service import VideoService
 from services.draw_service import DrawService
 
 # 3. Core
-from core.service_manager import ServiceManager
+from services.service_manager import ServiceManager
 
 # 4. Presentación (UI)
 from ui.main_window import MainWindow

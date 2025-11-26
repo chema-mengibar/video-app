@@ -8,12 +8,12 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap 
 from ui.styles.theme import DarkTheme 
 from services.video_service import VideoService 
-from core.service_manager import ServiceManager 
+from services.service_manager import ServiceManager 
 from ui.widgets.video_area_widget import VideoAreaWidget
 from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.topbar_widget import TopBarWidget 
 from features.draw.drawing_label import DrawingVideoLabel 
-from features.timeline.videomarks_module import BookmarksModule 
+from features.marks.videomarks_module import VideoMarksModule 
 
 
 class MainWindow(QMainWindow): 
@@ -27,7 +27,7 @@ class MainWindow(QMainWindow):
     
     # Mapeo de vistas del Sidebar a los índices del QStackedWidget interno del Sidebar
     SIDEBAR_VIEW_MAP = {
-        'bookmarks': 0,
+        'videomarks': 0,
         'drawing': 1,
         'grids': 2,
         'cut': 3
@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
         
         # 1. ESTADO CENTRAL DE VISTAS 
         self.active_views = {
-            'left': 'bookmarks',  # Vista inicial para el sidebar izquierdo
+            'left': 'videomarks',  # Vista inicial para el sidebar izquierdo
             'right': 'cut',  # Vista inicial para el sidebar derecho
             'center': 'player'
         }
@@ -94,8 +94,8 @@ class MainWindow(QMainWindow):
         drawing_label = self.video_area.get_drawing_label()
         initial_color = drawing_label.current_pen_color 
 
-        # Creamos la instancia ÚNICA del BookmarksModule
-        self.bookmarks_module = BookmarksModule(
+        # Creamos la instancia ÚNICA del VideoMarksModule
+        self.videomarks_module = VideoMarksModule(
             self.video_service, 
             self
         )
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
             self, # parent_app
             initial_color, 
             'left', # Ubicación
-            self.bookmarks_module, # <-- Inyección del widget/lógica real
+            self.videomarks_module, # <-- Inyección del widget/lógica real
             self
         )
         content_h_layout.addWidget(self.sidebar_left, 1)
@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
             self, # parent_app
             initial_color, 
             'right', # Ubicación
-            self.bookmarks_module, # <-- Inyección de la lógica para sincronización
+            self.videomarks_module, # <-- Inyección de la lógica para sincronización
             self
         )
         
@@ -156,9 +156,9 @@ class MainWindow(QMainWindow):
         self.video_area.seek_slider_released.connect(self.video_service.seek)
         self.video_area.quality_changed.connect(self.video_service.set_quality)
         
-        # CORRECCIÓN BUG: Usar self.bookmarks_module (la instancia), NO llamarla como función ()
+        # CORRECCIÓN BUG: Usar self.videomarks_module (la instancia), NO llamarla como función ()
         self.video_area.btn_add_bookmark.clicked.connect(
-            lambda: self.bookmarks_module.add_current_time_bookmark()
+            lambda: self.videomarks_module.add_current_time_bookmark()
         )
 
         self.video_area.btn_screenshot.clicked.connect(self.video_service.save_screenshot)
@@ -178,9 +178,9 @@ class MainWindow(QMainWindow):
         draw_module_left.color_changed.connect(drawing_label.set_pen_color)
         draw_module_left.save_drawing_request.connect(self.save_current_drawing)
         
-        # Bookmarks (Sincronización Feature -> UI)
-        # CORRECCIÓN BUG: Usar la instancia self.bookmarks_module directamente
-        self.bookmarks_module.marks_changed.connect(self.update_ruler_marks)
+        # videomarks (Sincronización Feature -> UI)
+        # CORRECCIÓN BUG: Usar la instancia self.videomarks_module directamente
+        self.videomarks_module.marks_changed.connect(self.update_ruler_marks)
         
         
     # --- Slots (Coordinación y Delegación) ---
@@ -331,22 +331,22 @@ class MainWindow(QMainWindow):
         self.video_area.get_ruler_widget().duration_msec = duration_msec
         self.video_area.get_ruler_widget().update()
         
-        # Cargar datos de bookmarks después de establecer el directorio
+        # Cargar datos de videomarks después de establecer el directorio
         if success and video_directory:
-            # Bookmarks 
+            # videomarks 
             bm_path = os.path.join(video_directory, "videomarks.json")
-            # Usamos self.bookmarks_module directamente
-            self.bookmarks_module.load_data_from_file(bm_path) 
+            # Usamos self.videomarks_module directamente
+            self.videomarks_module.load_data_from_file(bm_path) 
             self.update_ruler_marks()
             
         self.video_area.update_time_display(0, duration_msec)
     
     @Slot()
     def update_ruler_marks(self):
-        """Actualiza el ruler con las marcas obtenidas del BookmarksModule."""
-        # CORRECCIÓN BUG: Usamos self.bookmarks_module (la instancia)
-        mark_times = self.bookmarks_module.get_mark_times()
-        self.video_area.get_ruler_widget().update_bookmarks(mark_times)
+        """Actualiza el ruler con las marcas obtenidas del VideoMarksModule."""
+        # CORRECCIÓN BUG: Usamos self.videomarks_module (la instancia)
+        mark_times = self.videomarks_module.get_mark_times()
+        self.video_area.get_ruler_widget().update_videomarks(mark_times)
 
     # --- Funciones de Qt ---
     
