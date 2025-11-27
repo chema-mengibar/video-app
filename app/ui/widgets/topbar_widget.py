@@ -4,18 +4,9 @@ from PySide6.QtGui import QIcon
 from ui.styles.theme import DarkTheme
 
 class TopBarWidget(QFrame):
-    """
-    Barra superior que contiene los controles principales de la aplicación:
-    - Botón Load Video (izquierda)
-    - Botones para la selección de vista de Sidebar (derecha)
-
-    NOTA: Este widget NO maneja la lógica de exclusividad; simplemente emite
-    una señal con el identificador de la vista solicitada. El estado visual
-    activo se gestiona mediante la propiedad 'active-view' y CSS.
-    """
 
     # Señales emitidas a la MainWindow
-    load_video_request = Signal()
+    load_video_request = Signal(str)
     # Nueva señal que emite la clave de la vista que se desea activar
     view_change_request = Signal(str)
 
@@ -29,13 +20,29 @@ class TopBarWidget(QFrame):
         self.setup_ui()
         self.connect_signals()
 
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            url = event.mimeData().urls()[0]
+            if url.isLocalFile():
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+
+    def dropEvent(self, event):
+        file_path = event.mimeData().urls()[0].toLocalFile()
+        print("Archivo soltado:", file_path)
+        # Emitimos la señal hacia MainWindow
+        self.load_video_request.emit(file_path)
+
     def setup_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
 
         # Botón Load Video (izquierda)
         self.btn_load_video = QPushButton("Load Video")
-
+        self.setAcceptDrops(True)
         self.btn_load_video.setIcon(QIcon("assets/icons/photo-camera.svg"))
         self.btn_load_video.setIconSize(QSize(12, 12))
         self.btn_load_video.setToolTip("Open Video file")
@@ -64,7 +71,7 @@ class TopBarWidget(QFrame):
 
     def connect_signals(self):
         # Conexión principal del botón de cargar video
-        self.btn_load_video.clicked.connect(self.load_video_request.emit)
+        self.btn_load_video.clicked.connect(lambda: self.load_video_request.emit(""))
         
         # Conexiones que emiten la clave de la vista solicitada cuando se hace CLICK
         # Usamos la señal .clicked para la acción de cambio de vista.

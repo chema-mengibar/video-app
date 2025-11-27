@@ -193,11 +193,17 @@ class MainWindow(QMainWindow):
             return self.sidebar_left
         return None 
 
-    def _select_video_file(self):
-        """Abre el diálogo y delega la carga al VideoService."""
+    def _select_video_file(self, path=""):
+        if path:  
+            self.video_service.load_video_file(path)
+            return
+
+        # Si viene vacío → abrir diálogo
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Video File", os.path.expanduser("~"), "Video Files (*.mp4 *.avi *.mov);;All Files (*)"
+            self, "Open Video File", os.path.expanduser("~"),
+            "Video Files (*.mp4 *.avi *.mov);;All Files (*)"
         )
+
         if path:
             self.video_service.load_video_file(path)
 

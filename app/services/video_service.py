@@ -106,7 +106,7 @@ class VideoService(QObject):
         self.processor.video_loaded_signal.connect(self._handle_video_loaded)
 
     @staticmethod
-    def format_time(msec: int) -> str:
+    def format_time(msec: int, char=':') -> str:
         msec = int(msec)
         milliseconds = msec % 1000
         total_seconds = msec // 1000
@@ -114,8 +114,8 @@ class VideoService(QObject):
         minutes = (total_seconds // 60) % 60
         hours = total_seconds // 3600
         if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{seconds:02d}:{milliseconds:03d}"
-        return f"{minutes:02d}:{seconds:02d}:{milliseconds:03d}"
+            return f"{hours:02d}{char}{minutes:02d}{char}{seconds:02d}{char}{milliseconds:03d}"
+        return f"{minutes:02d}{char}{seconds:02d}{char}{milliseconds:03d}"
 
     @Slot(int)
     def _handle_time_update(self, current_msec):
@@ -143,6 +143,8 @@ class VideoService(QObject):
     def load_video_file(self, path: str):
         self.video_path = path
         self.processor.load_video(path)
+        self.toggle_play_pause(False)   # pausa
+        self.processor.seek(0)          # ir al primer frame
 
     def toggle_play_pause(self, play: bool):
         if self.processor.is_loaded:
@@ -174,7 +176,7 @@ class VideoService(QObject):
             print("VideoService: ERROR. Video no configurado.")
             return
 
-        time_str = self.format_time(current_msec)
+        time_str = self.format_time(current_msec, '_')
         screenshot_dir = os.path.join(self.video_directory, f"{self.video_filename_base}__screenshots")
         os.makedirs(screenshot_dir, exist_ok=True)
         filepath = os.path.join(screenshot_dir, f"capture_{time_str}.jpeg")
