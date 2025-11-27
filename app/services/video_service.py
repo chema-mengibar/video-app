@@ -9,12 +9,14 @@ class ClipSaveThread(QThread):
     finished_signal = Signal(str)  # Ruta del clip guardado
     error_signal = Signal(str)     # Mensaje de error
 
-    def __init__(self, video_path, start_msec, end_msec, output_filename, parent=None):
+    def __init__(self, video_path, start_msec, end_msec, output_filename, freeze_msec: int, freeze_duration: int, parent=None):
         super().__init__(parent)
         self.video_path = video_path
         self.start_msec = start_msec
         self.end_msec = end_msec
         self.output_filename = output_filename
+        self.freeze_msec = freeze_msec
+        self.freeze_duration = freeze_duration  # en segundos, int
 
     def run(self):
         cap = cv2.VideoCapture(self.video_path)
@@ -30,14 +32,45 @@ class ClipSaveThread(QThread):
 
         start_frame = int(self.start_msec / 1000.0 * fps)
         end_frame = int(self.end_msec / 1000.0 * fps)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
+        # Solo hacemos freeze si freeze_msec > 0 y freeze_duration > 0
+ 
+        freeze_duration_frames = int((self.freeze_duration or 0) * fps)
+        freeze_frame_index = int((self.freeze_msec or 0) / 1000.0 * fps) if (self.freeze_msec or 0) > 0 else None
+
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         current_frame = start_frame
+        frozen_frame = None
+
         while current_frame <= end_frame:
             ret, frame = cap.read()
             if not ret:
                 break
-            out.write(frame)
+
+            if freeze_frame_index and current_frame == freeze_frame_index and freeze_duration_frames > 0:
+                frozen_frame = frame.copy()
+
+                # --- Dibujar icono de pausa ---
+                rect_width = 10
+                rect_height = 30
+                padding = 5
+                # Primer rectángulo
+                top_left = (padding, padding)
+                bottom_right = (padding + rect_width, padding + rect_height)
+                cv2.rectangle(frozen_frame, top_left, bottom_right, (255, 255, 255), -1)
+                # Segundo rectángulo
+                top_left2 = (padding + rect_width + 5, padding)
+                bottom_right2 = (padding + 2*rect_width + 5, padding + rect_height)
+                cv2.rectangle(frozen_frame, top_left2, bottom_right2, (255, 255, 255), -1)
+
+                # Escribimos el frame congelado varias veces
+                for _ in range(freeze_duration_frames):
+                    out.write(frozen_frame)
+
+            # Solo escribimos frames normales si no es el frame del freeze
+            if not (freeze_frame_index and current_frame == freeze_frame_index):
+                out.write(frame)
+
             current_frame += 1
 
         cap.release()
@@ -46,12 +79,6 @@ class ClipSaveThread(QThread):
 
 
 class VideoService(QObject):
-    """
-    Servicio de Video (Video Service).
-    
-    Mediador entre la UI y el procesador de video.
-    """
-    
     frame_ready_signal = Signal(object)          # Emite frame (numpy array)
     time_updated_signal = Signal(int)           # Emite tiempo actual en msec
     video_loaded_signal = Signal(bool, int, str) # éxito, duración, path del video
@@ -161,14 +188,19 @@ class VideoService(QObject):
         except Exception as e:
             print(f"VideoService: EXCEPCIÓN al guardar captura: {e}")
 
-    @Slot(int, int, str)
-    def save_video_clip(self, start_msec: int, end_msec: int, output_filename: str = None):
+    @Slot(int, int, int, int, str)
+    def save_video_clip(self, start_msec: int, end_msec: int, freeze_msec: int = 0, freeze_duration: int = 0, output_filename: str = None):
+        """
+        Guarda un clip del video. Si freeze_msec y freeze_duration son >0,
+        congela ese frame durante freeze_duration segundos y dibuja un icono de pausa.
+        """
         if not self.processor.is_loaded or self.video_path is None:
             print("VideoService: No hay video cargado para cortar.")
             return
         if end_msec <= start_msec:
             print("VideoService: Tiempo final debe ser mayor que inicial.")
             return
+
         clips_dir = os.path.join(self.video_directory, f"{self.video_filename_base}__clips")
         os.makedirs(clips_dir, exist_ok=True)
 
@@ -177,7 +209,15 @@ class VideoService(QObject):
                 clips_dir,
                 f"clip__{self.video_filename_base}__{start_msec}_{end_msec}.mp4"
             )
-        self._clip_thread = ClipSaveThread(self.video_path, start_msec, end_msec, output_filename)
+
+        self._clip_thread = ClipSaveThread(
+            self.video_path,
+            start_msec,
+            end_msec,
+            output_filename,
+            freeze_msec,
+            freeze_duration
+        )
         self._clip_thread.finished_signal.connect(lambda path: print(f"VideoService: Clip guardado en {path}"))
         self._clip_thread.error_signal.connect(lambda msg: print(f"VideoService: Error al guardar clip: {msg}"))
         self._clip_thread.start()

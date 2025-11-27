@@ -15,7 +15,9 @@ class CutControlsWidget(QWidget):
     # Señales para notificar al módulo superior (CutModule)
     start_use_current_time_request = Signal()
     end_use_current_time_request = Signal()
-    save_clip_request = Signal(int, int)  # Emite start_msec y end_msec
+    freeze_use_current_time_request = Signal()
+    
+    save_clip_request = Signal(int, int, int, int)  # Emite start_msec , end_msec , freeze msec, freeze duration
     
     def __init__(self, parent=None): 
         super().__init__(parent)
@@ -52,10 +54,9 @@ class CutControlsWidget(QWidget):
         title = QLabel("Corte de Video")
         title.setObjectName("SidebarTitle")
         main_layout.addWidget(title)
-
-        
-
+      
         self.time_inputs = {}
+        
 
         # --- Display group ---
         display_group = QGroupBox("Rango de Tiempo")
@@ -70,7 +71,19 @@ class CutControlsWidget(QWidget):
         time_layout_end, self.time_end_edit, self.btn_end_u = self._create_time_input_row("00:00:00:000")
         display_layout.addLayout(time_layout_end)
         self.time_inputs['end'] = self.time_end_edit
-
+        
+        # Freeze time
+        time_layout_freeze, self.time_freeze_edit, self.btn_freeze_u = self._create_time_input_row("00:00:00:000")
+        display_layout.addLayout(time_layout_freeze)
+        self.time_inputs['freeze'] = self.time_freeze_edit
+            
+        # Input frame freeze duration: if 0 -> no freeze
+        freeze_dur_input = QLineEdit('0')
+        freeze_dur_input.setFixedWidth(100)
+        freeze_dur_input.setAlignment(Qt.AlignCenter)
+        self.freeze_dur_input = freeze_dur_input
+        display_layout.addWidget(freeze_dur_input)
+        
         # Botón de guardar clip
         self.btn_save_clip = QPushButton("Guardar Clip")
         self.btn_save_clip.setFixedHeight(30)
@@ -83,6 +96,7 @@ class CutControlsWidget(QWidget):
     def _connect_signals(self):
         self.btn_start_u.clicked.connect(self.start_use_current_time_request.emit)
         self.btn_end_u.clicked.connect(self.end_use_current_time_request.emit)
+        self.btn_freeze_u.clicked.connect(self.freeze_use_current_time_request.emit)
         self.btn_save_clip.clicked.connect(self._emit_save_clip_request)
 
     # --- Slots públicos para actualizar los inputs ---
@@ -94,14 +108,25 @@ class CutControlsWidget(QWidget):
     def set_display_end_time(self, msec: int, time_str: str):
         self.time_end_edit.setText(time_str)
 
+    @Slot(int, str)
+    def set_display_freeze_time(self, msec: int, time_str: str):
+        self.time_freeze_edit.setText(time_str)
+
     # --- Emitir señal de guardar clip ---
     def _emit_save_clip_request(self):
         try:
             start_text = self.time_start_edit.text()
             end_text = self.time_end_edit.text()
+            freeze_text = self.time_freeze_edit.text()
+            freeze_duration = int(self.freeze_dur_input.text()) if self.freeze_dur_input.text() else 0
+            
             start_msec = self._time_str_to_msec(start_text)
             end_msec = self._time_str_to_msec(end_text)
-            self.save_clip_request.emit(start_msec, end_msec)
+            freeze_msec = self._time_str_to_msec(freeze_text)
+           
+            
+            self.save_clip_request.emit(start_msec, end_msec, freeze_msec, freeze_duration)
+            
         except Exception as e:
             print(f"Error al emitir save_clip_request: {e}")
 

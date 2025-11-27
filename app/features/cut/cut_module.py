@@ -32,6 +32,7 @@ class CutModule(QWidget):
         # Botones "u" del widget
         self.cut_controls.start_use_current_time_request.connect(self._use_current_start_time)
         self.cut_controls.end_use_current_time_request.connect(self._use_current_end_time)
+        self.cut_controls.freeze_use_current_time_request.connect(self._use_current_freeze_time)
 
         # Botón "Guardar Clip"
         self.cut_controls.save_clip_request.connect(self._save_clip)
@@ -50,16 +51,23 @@ class CutModule(QWidget):
         current_msec = self.video_service.get_current_time()
         time_str = self._format_msec(current_msec)
         self.cut_controls.set_display_end_time(current_msec, time_str)
+        
+    @Slot()
+    def _use_current_freeze_time(self):
+        """Usa el tiempo actual del video como fin del rango."""
+        current_msec = self.video_service.get_current_time()
+        time_str = self._format_msec(current_msec)
+        self.cut_controls.set_display_freeze_time(current_msec, time_str)
 
     @Slot(int, int)
-    def _save_clip(self, start_msec: int, end_msec: int):
+    def _save_clip(self, start_msec: int, end_msec: int, freeze_msec: int, freeze_duration: int):
       if not self.video_service.is_video_loaded():
         print("No hay video cargado para guardar clip.")
         return
 
       # Generar nombre por defecto
       output_filename = None  # VideoService lo genera automáticamente
-      self.video_service.save_video_clip(start_msec, end_msec, output_filename)
+      self.video_service.save_video_clip(start_msec, end_msec, freeze_msec, freeze_duration, output_filename)
 
     # --- Helper ---
     def _format_msec(self, msec: int) -> str:
