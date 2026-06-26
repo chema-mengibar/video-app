@@ -1,0 +1,45 @@
+:root {
+    /* fonts */
+    --regular: 400;
+    --bold: 600;
+    --font-hl: 'RobotoSlab', serif;
+    --font-hlb: 'RobotoSlab-Bold', serif;
+    --font-copy: 'OpenSans', serif;
+    /* colors */
+    --app-bg-color: #202020;
+    --text-color:245, 245, 245;
+    --text-color-rgb: rgb(245, 245, 245);
+    /* >> colors: primary */
+    --primary-text-color: 32, 32, 32;
+    --primary-text-color-rgb: rgb(255, 255, 255);
+    --primary-color: 194, 6, 241;
+    --primary-color-rgb: rgb(194, 6, 241);
+    /* >> colors: secondary */
+    --secondary-text-color: 76, 66, 135;
+    --secondary-text-color-rgb: #202020;
+    --secondary-color: 17, 214, 228;
+    --secondary-color-rgb: rgb(17, 214, 228);
+       /* >> colors: neutral */
+    --neutral-color-rgb: rgb(145, 145, 145);
+   
+    /* spacing: vertical baseline */
+    --vm10: 240px;
+    --vm8: 192px;
+    --vm6: 144px;
+    --vm4: 96px;
+    --vm2: 48px;
+    --vb: 24px;
+    --vd2: 12px;
+    --vd4: 6px;
+    --vd6: 4px;
+    --vd8: 3px;
+    --vd10: 2.4px;
+}
+
+
+/*
+[data-theme=kids] {
+  
+
+}
+*/

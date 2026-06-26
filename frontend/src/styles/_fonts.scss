@@ -1,0 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+$font-primary: 'Inter', system-ui, -apple-system, sans-serif;
+
+:root {
+  --font-main: #{$font-primary};
+
+  --fs-ui-tiny: 11px;   
+  --fs-ui-small: 12px;  
+  --fs-ui-normal: 14px; 
+
+  // Pesos
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 600;
+}

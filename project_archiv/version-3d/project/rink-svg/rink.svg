@@ -1,0 +1,92 @@
+<svg width="260" height="440" viewBox="0 0 260 440" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <rect width="260" height="440" fill="white" data-name="rink-area"/>
+  
+  <g data-name="rink-grid">
+
+    <rect width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="0" data-grid-y="0"/>
+    <rect x="65" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="1" data-grid-y="0"/>
+    <rect x="130" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="2" data-grid-y="0"/>
+    <rect x="195" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="3" data-grid-y="0"/>
+
+    <rect y="110" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="0" data-grid-y="1"/>
+    <rect x="65" y="110" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="1" data-grid-y="1"/>
+    <rect x="130" y="110" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="2" data-grid-y="1"/>
+    <rect x="195" y="110" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="3" data-grid-y="1"/>
+
+    <rect y="220" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="0" data-grid-y="2"/>
+    <rect x="65" y="220" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="1" data-grid-y="2"/>
+    <rect x="130" y="220" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="2" data-grid-y="2"/>
+    <rect x="195" y="220" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="3" data-grid-y="2"/>
+
+    <rect y="330" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="0" data-grid-y="3"/>
+    <rect x="65" y="330" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="1" data-grid-y="3"/>
+    <rect x="130" y="330" width="65" height="110" fill="#EEEEEE" data-name="grid" data-grid-x="2" data-grid-y="3"/>
+    <rect x="195" y="330" width="65" height="110" fill="#E3E3E3" data-name="grid" data-grid-x="3" data-grid-y="3"/>
+
+  </g>
+
+  <g data-name="rink-lines">
+    <line x1="1.10626e-07" y1="19.5" x2="260" y2="19.5" stroke="black" data-name="line-top"/>
+    <line x1="1.10626e-07" y1="219.5" x2="260" y2="219.5" stroke="black" data-name="line-center"/>
+    <line x1="1.10626e-07" y1="419.5" x2="260" y2="419.5" stroke="black" data-name="line-bottom"/>
+    <circle cx="130" cy="220" r="8.24974" stroke="black" data-name="line-circle-center"/>
+  </g>
+
+  <g data-name="rink-goals">
+    <rect data-anme="area-top" width="260" height="19" fill="white"/>
+    <path data-name="case-top" d="M100 20C100 23.9397 100.776 27.8407 102.284 31.4805C103.791 35.1203 106.001 38.4274 108.787 41.2132C111.573 43.999 114.88 46.2087 118.519 47.7164C122.159 49.224 126.06 50 130 50C133.94 50 137.841 49.224 141.481 47.7164C145.12 46.2087 148.427 43.999 151.213 41.2132C153.999 38.4274 156.209 35.1203 157.716 31.4805C159.224 27.8407 160 23.9397 160 20L130 20L100 20Z" fill="#CCCCCC" fill-opacity="0.5"/>
+    <rect data-anme="area-bottom"  y="420" width="260" height="20" fill="#FF0000"/>
+    <path data-name="case-bottom" d="M160 419C160 415.06 159.224 411.159 157.716 407.519C156.209 403.88 153.999 400.573 151.213 397.787C148.427 395.001 145.12 392.791 141.481 391.284C137.841 389.776 133.94 389 130 389C126.06 389 122.159 389.776 118.519 391.284C114.88 392.791 111.573 395.001 108.787 397.787C106.001 400.573 103.791 403.88 102.284 407.519C100.776 411.159 100 415.06 100 419L130 419H160Z" fill="#CCCCCC" fill-opacity="0.5"/>
+  </g>
+
+  <g data-name="players-home">
+    <g id="player-home-1" data-type="player">
+      <circle cx="84.2014" cy="271.267" r="5" fill="#FF0404" stroke="black" stroke-opacity="0.32"/>
+      <circle cx="84.2014" cy="271.267" r="1.46613" fill="white"/>
+    </g>
+    <g id="player-home-2" data-type="player">
+      <circle cx="84.2014" cy="286.936" r="5" fill="#FF0404" stroke="black" stroke-opacity="0.32"/>
+      <rect x="81.6357" y="284.462" width="5.13141" height="1.69519" fill="white"/>
+      <rect x="81.6357" y="287.715" width="5.13141" height="1.69519" fill="white"/>
+    </g>
+    <g id="player-home-3" data-type="player">
+      <circle cx="99.5957" cy="286.936" r="5" fill="#FF0404" stroke="black" stroke-opacity="0.32"/>
+      <path d="M99.5957 283.061L103.239 289.371H95.9524L99.5957 283.061Z" fill="white"/>
+    </g>
+    <g id="player-home-4" data-type="player">
+      <circle cx="99.5957" cy="271.633" r="5" fill="#FF0404" stroke="black" stroke-opacity="0.32"/>
+      <path d="M102.252 268.977V274.29H96.9391V268.977H102.252Z" fill="white"/>
+    </g>
+    <g id="player-home-g" data-type="player">
+      <circle cx="84.2014" cy="312.74" r="5" fill="#FF0404" stroke="black" stroke-opacity="0.32"/>
+    </g>
+  </g>
+
+  <g data-name="players-guest">
+    <g id="player-guest-1" data-type="player">
+      <circle cx="84.2014" cy="239.934" r="5" fill="white" stroke="black" stroke-opacity="0.32"/>
+      <circle cx="84.2014" cy="239.934" r="1.46613" fill="#070BFF"/>
+    </g>
+    <g id="player-guest-2" data-type="player">
+      <circle cx="84.2014" cy="255.603" r="5" fill="white" stroke="black" stroke-opacity="0.32"/>
+      <rect x="81.6357" y="253.129" width="5.13141" height="1.69519" fill="#070BFF"/>
+      <rect x="81.6357" y="256.382" width="5.13141" height="1.69519" fill="#070BFF"/>
+    </g>
+    <g id="player-guest-3" data-type="player">
+      <circle cx="99.5957" cy="255.603" r="5" fill="white" stroke="black" stroke-opacity="0.32"/>
+      <path d="M99.5957 251.728L103.239 258.038H95.9524L99.5957 251.728Z" fill="#070BFF"/>
+    </g>
+    <g id="player-guest-4" data-type="player">
+      <circle cx="99.5957" cy="240.301" r="5" fill="white" stroke="black" stroke-opacity="0.32"/>
+      <path d="M102.252 237.644V242.957H96.9391V237.644H102.252Z" fill="#070BFF"/>
+    </g>
+    <g id="player-guest-g" data-type="player">
+      <circle cx="84.2014" cy="339.44" r="5" fill="#070BFF" stroke="black" stroke-opacity="0.32"/>
+    </g>
+  </g>
+
+
+
+
+</svg>

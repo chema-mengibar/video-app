@@ -1,0 +1,12 @@
+.logo{
+  color: var(--text-color-rgb);
+  font-family: var(--font-hlb);
+  font-size:120px;
+  align-items: center;
+  display:flex;
+
+  .home-logo-icon{
+    color: var(--primary-color-rgb);
+  }
+}
+

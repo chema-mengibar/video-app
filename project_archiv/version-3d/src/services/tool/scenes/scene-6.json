@@ -1,0 +1,78 @@
+{
+  "meta": {
+      "name": "scene-6",
+      "first": "player-h-1"
+  },
+  "assets": [
+      {
+          "name": "player-h-1",
+          "loc": {
+              "x": "4.9",
+              "z": "-2.2"
+          }
+      },
+      {
+          "name": "player-h-2",
+          "loc": {
+              "x": "1.6",
+              "z": "-4.3"
+          }
+      },
+      {
+          "name": "player-h-3",
+          "loc": {
+              "x": "0.6",
+              "z": "-10.5"
+          }
+      },
+      {
+          "name": "player-h-4",
+          "loc": {
+              "x": "12.6",
+              "z": "-8.3"
+          }
+      },
+      {
+          "name": "player-h-goalie",
+          "loc": {
+              "x": 19.5,
+              "z": 0
+          }
+      },
+      {
+          "name": "player-g-1",
+          "loc": {
+              "x": "9.5",
+              "z": "7.2"
+          }
+      },
+      {
+          "name": "player-g-2",
+          "loc": {
+              "x": "-3",
+              "z": "2.5"
+          }
+      },
+      {
+          "name": "player-g-3",
+          "loc": {
+              "x": "-0.6",
+              "z": "-2.4"
+          }
+      },
+      {
+          "name": "player-g-4",
+          "loc": {
+              "x": "13.9",
+              "z": "-0.4"
+          }
+      },
+      {
+          "name": "player-g-goalie",
+          "loc": {
+              "x": -19.5,
+              "z": 0
+          }
+      }
+  ]
+} 

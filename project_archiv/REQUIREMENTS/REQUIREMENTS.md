@@ -1,0 +1,19 @@
+## Estándares Técnicos
+- **Framework:** Vue 3 (Script Setup), no usar ts.
+- **Estilos:** SASS (SCSS).
+- **Metodología CSS:** BEM estricto.
+- **Prohibido:** Usar comentarios dentro del código.
+- **Layout:** Usar CSS Grid para la estructura global y Flexbox para los paneles internos.
+- **LENGUAJE**: JavaScript puro (JS). **PROHIBIDO EL USO DE TYPESCRIPT**.
+- **NO TYPES**: No usar `lang="ts"`, no definir interfaces, no usar tipos de datos.
+- **SCRIPT**: Uso obligatorio de `<script setup>`.
+- **COMENTARIOS**: No incluir comentarios de ningún tipo en el código.
+- **Lenguaje:** JavaScript puro (**PROHIBIDO TypeScript/lang="ts"**).
+- **Rutas:** Usar alias `@/` para imports desde la raíz de `src`.
+- **Inyección:** Obtener `videoService` desde `SERVICES_KEY` con blindaje opcional (`services?.videoService`).
+- **Comentarios:** No incluir comentarios en el código resultante.
+- - Inyección: Importar { SERVICES_KEY } de '@/services/ServiceRegistry.js' y usar optional chaining (services?.videoService).
+- IMPORTACIÓN: Al usar inject(SERVICES_KEY), es obligatorio importar { SERVICES_KEY } desde '@/services/ServiceRegistry.js'.
+- SEGURIDAD: Usar siempre optional chaining al acceder a servicios inyectados (ej. services?.videoService).
+- REFERENCIAS DOM: Declarar explícitamente las variables ref para elementos del template (ej. const videoElement = ref(null)).
+- ESTILOS: Prohibido estilizar etiquetas HTML directamente (video, button, div). Usar siempre clases BEM (ej. .video-player__video).

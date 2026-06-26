@@ -1,0 +1,33 @@
+@use "sass:color";
+
+$base-color: #303030;
+$accent: #45FFA2;
+
+:root {
+  --base: #{$base-color};
+  --base-dark-1: #{color.adjust($base-color, $lightness: -5%)};
+  --base-dark-2: #{color.adjust($base-color, $lightness: -10%)};
+  --base-dark-3: #{color.adjust($base-color, $lightness: -15%)};
+  --base-light-1: #{color.adjust($base-color, $lightness: 5%)};
+  --base-light-2: #{color.adjust($base-color, $lightness: 10%)};
+  --base-light-3: #{color.adjust($base-color, $lightness: 15%)};
+  --accent-primary: #{$accent};
+  --accent-primary-hover: #{color.adjust($accent, $lightness: -10%)};
+  --accent-rgb: 69, 255, 162;
+  --text-color: #ffffff;
+  --text-color-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --signal-green: #45FFA2;
+  --danger: #ff2020;
+  --surface-black: #000000;
+  --surface-outer: #202020;
+  --surface-panel: #303030;
+  --surface-header: #444444;
+  --surface-control: #3a3a3a;
+  --surface-button: #666666;
+  --surface-border: #555555;
+  --surface-timeline: #242424;
+  --surface-track-label: #1a1a1a;
+  --surface-grid: #171717;
+  --playhead: #4b83d8;
+}

@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "name": "scene-dummy",
+    "description":"",
+    "solution":"",
+    "first": "player-g-goalie"
+  },
+  "assets": [
+    {
+      "name": "player-g-goalie",
+      "loc": {
+        "x": -20.09,
+        "z": 0.05
+      }
+    },
+    {
+      "name": "player-h-goalie",
+      "loc": {
+        "x": 20.09,
+        "z": -0.05
+      }
+    }
+  ]
+}

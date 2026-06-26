@@ -1,0 +1,79 @@
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Type checking
+.mypy_cache/
+.pyre/
+.pytype/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# -----------------------------
+# Node / Vue
+# -----------------------------
+node_modules/
+dist/
+coverage/
+
+# Package managers
+.npm/
+.pnpm-store/
+
+# Vite
+vite.svg
+
+# -----------------------------
+# Environment
+# -----------------------------
+.env
+.env.local
+.env.*
+!.env.example
+
+# -----------------------------
+# Project files
+# -----------------------------
+*.tmp
+*.bak
+*.swp
+
+# -----------------------------
+# Media analysis app
+# -----------------------------
+*.project.json
+*.drawings.json
+*.bookmarks.json
+exports/
+temp/
+cache/
