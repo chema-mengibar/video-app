@@ -100,6 +100,10 @@ export class MeasureService {
         return this.items.find((item) => item.id === this.state.selectedItemId) || null;
     }
 
+    get sourceGridItem() {
+        return this.items.find((item) => item.type === "measure-grid") || null;
+    }
+
     selectTool(tool) {
         this.state.selectedTool = this.state.selectedTool === tool ? null : tool;
         this.state.editMode = null;
@@ -113,7 +117,9 @@ export class MeasureService {
     }
 
     startMoveFieldPoint(index) {
-        if (!this.gridItem) return;
+        const grid = this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
+        if (!grid) return;
         if (this.isActiveFieldPoint(index)) {
             this.finishMove();
             return;
@@ -129,6 +135,7 @@ export class MeasureService {
             return;
         }
         this.state.selectedItemId = id;
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         this.state.selectedTool = null;
         this.state.editMode = "measure-point";
         this.state.editPointIndex = index;
@@ -142,34 +149,38 @@ export class MeasureService {
         return this.state.editMode === "measure-point" && this.state.selectedItemId === id && this.state.editPointIndex === index;
     }
 
-    updateFieldPoint(index, patch) {
-        const grid = this.gridItem;
+    updateFieldPoint(index, patch, id = null) {
+        const grid = id ? this.items.find((item) => item.id === id) : this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
         if (!grid?.points?.[index]) return;
         Object.assign(grid.points[index], patch);
-        this.projectService.save();
+        this.saveMoveResult(grid);
     }
 
     updateFieldDimensions(patch) {
-        const grid = this.gridItem;
+        const grid = this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
         if (!grid) return;
         Object.assign(grid, patch);
-        this.projectService.save();
+        this.saveMoveResult(grid);
     }
 
     applyDimensionPreset(preset) {
-        const grid = this.gridItem;
+        const grid = this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
         if (!grid || !preset) return;
         Object.assign(grid, {
             dimensionPreset: preset.id,
             abMeters: preset.width,
             acMeters: preset.length
         });
-        this.projectService.save();
+        this.saveMoveResult(grid);
     }
 
     begin(point) {
         if (this.state.editMode === "image-item") {
             const item = this.selectedItem;
+            this.prepareKeyframedItemForEdit(item);
             this.dragStart = clonePoint(point);
             this.moveStartPoint = item?.point ? clonePoint(item.point) : null;
             this.moveStartPoints = (item?.points || []).map(clonePoint);
@@ -178,6 +189,7 @@ export class MeasureService {
 
         if (this.state.editMode === "world-item") {
             const item = this.selectedItem;
+            this.prepareKeyframedItemForEdit(item);
             this.dragStart = clonePoint(point);
             this.moveStartPoint = item?.point ? this.imageToWorld(item.point) : null;
             this.moveStartWorldPoints = (item?.points || []).map((candidate) => this.imageToWorld(candidate)).filter(Boolean);
@@ -185,18 +197,21 @@ export class MeasureService {
         }
 
         if (this.state.editMode === "player-point") {
+            this.prepareKeyframedItemForEdit(this.selectedItem);
             this.dragStart = clonePoint(point);
             this.moveStartPoints = [clonePoint(this.selectedItem.point)];
             return;
         }
 
         if (this.state.editMode === "field-point") {
+            this.prepareKeyframedItemForEdit(this.sourceGridItem);
             this.dragStart = clonePoint(point);
             this.moveStartPoints = this.field.points.map(clonePoint);
             return;
         }
 
         if (this.state.editMode === "measure-point") {
+            this.prepareKeyframedItemForEdit(this.selectedItem);
             this.dragStart = clonePoint(point);
             this.moveStartPoints = (this.selectedItem?.points || []).map(clonePoint);
             return;
@@ -418,6 +433,7 @@ export class MeasureService {
 
     startMovePlayer(id) {
         const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
         if (!item?.point) return;
         if (this.state.editMode === "player-point" && this.state.selectedItemId === id) {
             this.finishMove();
@@ -435,6 +451,7 @@ export class MeasureService {
 
     startImageMoveSelected(id) {
         const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
         if (!item) return;
         if (this.isActiveImageMove(id)) {
             this.finishMove();
@@ -452,6 +469,7 @@ export class MeasureService {
 
     startWorldMoveSelected(id) {
         const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
         if (!item || !this.gridItem) return;
         if (this.isActiveWorldMove(id)) {
             this.finishMove();
@@ -469,9 +487,18 @@ export class MeasureService {
 
     updatePlayerPoint(id, patch) {
         const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
         if (!item?.point) return;
         Object.assign(item.point, patch);
-        this.projectService.save();
+        this.saveMoveResult(item);
+    }
+
+    updateMeasurePoint(id, index, patch) {
+        const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
+        if (!item?.points?.[index]) return;
+        Object.assign(item.points[index], patch);
+        this.saveMoveResult(item);
     }
 
     updatePlayerConfig(patch) {
@@ -514,7 +541,7 @@ export class MeasureService {
 
     currentEditedItem() {
         if (this.state.editMode === "field-point") {
-            return this.gridItem;
+            return this.sourceGridItem;
         }
         return this.selectedItem;
     }
@@ -522,6 +549,10 @@ export class MeasureService {
     saveMoveResult(item) {
         if (this.keyframeService?.updateCurrentKeyframeIfActive(item)) return;
         this.projectService.save();
+    }
+
+    prepareKeyframedItemForEdit(item) {
+        this.keyframeService?.applyCurrentKeyframeGeometry(item);
     }
 
     measureLineMeters(item) {

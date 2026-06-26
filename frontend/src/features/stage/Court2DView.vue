@@ -94,8 +94,9 @@ const visibleItems = computed(() => {
     const to = Number.isFinite(item.time_to) ? item.time_to : from;
     return currentTime >= from && currentTime <= to;
   }).map((item) => {
-    const isSelected = item.id === draw.state.selectedItemId || item.id === measure.state.selectedItemId;
-    return isSelected ? item : keyframes.itemAtTime(item, currentTime);
+    const isActiveDrawEdit = item.id === draw.state.selectedItemId && draw.state.mode === "move";
+    const isActiveMeasureEdit = item.id === measure.state.selectedItemId && !!measure.state.editMode;
+    return isActiveDrawEdit || isActiveMeasureEdit ? item : keyframes.itemAtTime(item, currentTime);
   });
 });
 
@@ -179,7 +180,7 @@ const drawShapes = computed(() => visibleItems.value
       source: item,
       path,
       color: item.color || "#45FFA2",
-      opacity: Number.isFinite(item.opacity) ? item.opacity : 1,
+      opacity: strokeOpacityFor(item),
       width: Number(item.width) || 2,
       fill: fillFor(item),
       fillOpacity: fillOpacityFor(item),
@@ -195,15 +196,11 @@ const imagePointsFor = (item) => {
     const circle = circleFor(item);
     if (!circle) return [];
     const radius = Number(circle.radius) || 1;
-    const height = item.oval ? Number(circle.height) || radius : radius;
-    const rotation = ((Number(circle.rotation) || 0) * Math.PI) / 180;
     return Array.from({ length: 48 }, (_, index) => {
       const angle = (index / 48) * Math.PI * 2;
-      const localX = Math.cos(angle) * radius;
-      const localY = Math.sin(angle) * height;
       return {
-        x: circle.center.x + localX * Math.cos(rotation) - localY * Math.sin(rotation),
-        y: circle.center.y + localX * Math.sin(rotation) + localY * Math.cos(rotation)
+        x: circle.center.x + Math.cos(angle) * radius,
+        y: circle.center.y + Math.sin(angle) * radius
       };
     });
   }
@@ -216,6 +213,10 @@ const imagePointsFor = (item) => {
 };
 
 const worldPathFor = (item) => {
+  if (item.type === "circle") {
+    return worldCirclePathFor(item);
+  }
+
   const points = imagePointsFor(item)
     .map((point) => measure.imageToWorld(point))
     .filter(Boolean);
@@ -223,6 +224,28 @@ const worldPathFor = (item) => {
 
   const closed = ["triangle", "square", "polygon", "circle"].includes(item.type) || (item.type === "polyline" && item.closed);
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ") + (closed ? " Z" : "");
+};
+
+const worldCirclePathFor = (item) => {
+  const circle = circleFor(item);
+  const center = circle ? measure.imageToWorld(circle.center) : null;
+  if (!circle || !center) return "";
+
+  const radiusPoint = measure.imageToWorld({
+    x: circle.center.x + (Number(circle.radius) || 1),
+    y: circle.center.y
+  });
+  if (!radiusPoint) return "";
+
+  const radius = Math.max(0.01, Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y));
+  const points = Array.from({ length: 48 }, (_, index) => {
+    const angle = (index / 48) * Math.PI * 2;
+    return {
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius
+    };
+  });
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ") + " Z";
 };
 
 const pathPoints = (path) => Array.from(String(path || "").matchAll(/[ML]\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g))
@@ -263,7 +286,13 @@ const fillOpacityFor = (item) => {
   return Number.isFinite(item.fillOpacity) ? item.fillOpacity : 0.4;
 };
 
-const shapeStrokeWidth = (item) => Math.max(0.04, (Number(item.width) || 2) * 0.025);
+const shapeStrokeWidth = (item) => {
+  const width = Number(item.width) || 2;
+  if (item.type === "polyline") return Math.max(0.08, width * 0.05);
+  return Math.max(0.04, width * 0.025);
+};
+
+const strokeOpacityFor = (item) => item.type === "polyline" ? 1 : Number.isFinite(item.opacity) ? item.opacity : 1;
 
 const pointFromEvent = (event) => {
   const svg = svgRef.value;
@@ -478,10 +507,6 @@ const formatTime = (time) => {
 .court-2d__shape {
   cursor: pointer;
   vector-effect: non-scaling-stroke;
-}
-
-.court-2d__shape--selected {
-  filter: drop-shadow(0 0 2px var(--accent-primary));
 }
 
 .court-2d__player {

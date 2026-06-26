@@ -53,8 +53,8 @@
             :key="item.id"
             :d="pathFor(item)"
             :stroke="item.color"
-            :stroke-width="item.width / 4"
-            :stroke-opacity="item.opacity"
+            :stroke-width="strokeWidthFor(item)"
+            :stroke-opacity="strokeOpacityFor(item)"
             :fill="fillFor(item)"
             :fill-opacity="fillOpacityFor(item)"
             :style="{ mixBlendMode: blendModeFor(item) }"
@@ -291,8 +291,9 @@ const visibleItems = computed(() => {
     const to = Number.isFinite(item.time_to) ? item.time_to : from;
     return currentTime >= from && currentTime <= to;
   }).map((item) => {
-    const isSelected = item.id === draw.state.selectedItemId || item.id === measure.state.selectedItemId;
-    return isSelected ? item : keyframes.itemAtTime(item, currentTime);
+    const isActiveDrawEdit = item.id === draw.state.selectedItemId && draw.state.mode === "move";
+    const isActiveMeasureEdit = item.id === measure.state.selectedItemId && !!measure.state.editMode;
+    return isActiveDrawEdit || isActiveMeasureEdit ? item : keyframes.itemAtTime(item, currentTime);
   });
 });
 const selectedItem = computed(() => {
@@ -373,7 +374,7 @@ const selectedHandles = computed(() => {
     key: `point-${index}`,
     mode: "point",
     shape: "plus",
-    label: `Point ${index + 1}`,
+    label: item.type === "measure-grid" ? fieldLabels[index] : `Point ${index + 1}`,
     index,
     x: point.x,
     y: point.y
@@ -764,6 +765,14 @@ const fillOpacityFor = (item) => {
   }
   return fillFor(item) === "none" ? 0 : item.opacity;
 };
+
+const strokeWidthFor = (item) => {
+  const width = Number(item.width) || 2;
+  if (item.type === "polyline") return Math.max(1.2, width / 2);
+  return width / 4;
+};
+
+const strokeOpacityFor = (item) => item.type === "polyline" ? 1 : item.opacity;
 
 const blendModeFor = (item) => {
   return item.fillMode || "normal";

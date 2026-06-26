@@ -9,21 +9,20 @@ Canvas and 2D items can read their geometry from keyframes at the current timeli
 ## Expected User Behavior
 
 - If the user moves an element and then creates a keyframe, the current position is saved in that keyframe.
-- If the playhead is already on an existing keyframe and the user moves the element, that keyframe is updated automatically.
+- If the playhead is already on an existing keyframe and the user moves an element, the new geometry is saved to that keyframe after the element is dropped and the position is set.
 - Moving between keyframes does not automatically create a new keyframe.
 
 ## Items That Should Work
 
 - Players and ball: position.
+- Circles: center position, radius, height, and rotation.
+- Straight lines, polylines, triangles, squares, and polygons: vertices.
 - Measure lines: line points.
 - Measure grid: grid vertices, dimensions, and padding.
-- Straight lines, polylines, triangles, squares, and polygons: vertices.
-- Circles: center, radius, height, and rotation.
 - Free lines: simple path points.
 
 ## Known Limits
 
-- Selected items are edited from their base geometry, so editing and animated preview can diverge between keyframes.
 - Free-line interpolation only supports simple `M` and `L` SVG path commands.
 - Circle projection between Canvas and 2D is approximate because radius is stored in image space.
 - Animated grid projection can move other projected elements in ways that may surprise the user.

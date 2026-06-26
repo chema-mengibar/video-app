@@ -62,6 +62,7 @@ export class DrawItemsService {
 
     selectItem(id) {
         this.state.selectedItemId = id;
+        this.prepareKeyframedItemForEdit(this.selectedItem);
     }
 
     focusItem(id) {
@@ -82,6 +83,7 @@ export class DrawItemsService {
         }
 
         this.selectItem(id);
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         if (!this.selectedItem) return;
         this.state.mode = "move";
         this.state.editMode = "move";
@@ -96,6 +98,7 @@ export class DrawItemsService {
         }
 
         this.selectItem(id);
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         if (!this.selectedItem || !measureService?.gridItem) return;
         this.state.mode = "move";
         this.state.editMode = "world-move";
@@ -111,6 +114,7 @@ export class DrawItemsService {
         }
 
         this.selectItem(id);
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         if (!this.selectedItem?.points?.[index]) return;
         this.state.mode = "move";
         this.state.editMode = "point";
@@ -125,6 +129,7 @@ export class DrawItemsService {
         }
 
         this.selectItem(id);
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         if (this.selectedItem?.type !== "circle") return;
         this.state.mode = "move";
         this.state.editMode = "radius";
@@ -139,6 +144,7 @@ export class DrawItemsService {
         }
 
         this.selectItem(id);
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         if (this.selectedItem?.type !== "circle") return;
         this.state.mode = "move";
         this.state.editMode = "height";
@@ -219,20 +225,14 @@ export class DrawItemsService {
         if (this.state.mode === "move" && this.state.editMode === "world-move") {
             this.moveSelectedInWorld(point);
             this.saveMoveResult(this.selectedItem);
-            this.dragStart = null;
-            this.moveStartWorldPoints = [];
+            this.clearMoveState();
             return;
         }
 
         if (this.state.mode === "move") {
             this.moveSelected(point);
             this.saveMoveResult(this.selectedItem);
-            this.dragStart = null;
-            this.moveStartPoints = [];
-            this.moveStartCenter = null;
-            this.moveStartRadius = null;
-            this.moveStartPath = "";
-            this.moveStartWorldPoints = [];
+            this.clearMoveState();
             return;
         }
 
@@ -306,15 +306,17 @@ export class DrawItemsService {
 
     updateSelected(patch) {
         if (!this.selectedItem) return;
+        this.prepareKeyframedItemForEdit(this.selectedItem);
         Object.assign(this.selectedItem, patch);
-        this.projectService.save();
+        this.saveMoveResult(this.selectedItem);
     }
 
     updateSelectedPoint(index, patch, id = this.state.selectedItemId) {
         const item = this.items.find((candidate) => candidate.id === id);
+        this.prepareKeyframedItemForEdit(item);
         if (!item?.points?.[index]) return;
         Object.assign(item.points[index], patch);
-        this.projectService.save();
+        this.saveMoveResult(item);
     }
 
     deletePoint(id, index) {
@@ -464,6 +466,10 @@ export class DrawItemsService {
 
     finishMoveMode() {
         this.saveMoveResult(this.selectedItem);
+        this.clearMoveState();
+    }
+
+    clearMoveState() {
         this.state.mode = "draw";
         this.state.editMode = null;
         this.state.editPointIndex = null;
@@ -471,6 +477,7 @@ export class DrawItemsService {
         this.moveStartPoints = [];
         this.moveStartCenter = null;
         this.moveStartRadius = null;
+        this.moveStartHeight = null;
         this.moveStartPath = "";
         this.moveStartWorldPoints = [];
         this.moveMeasureService = null;
@@ -480,6 +487,10 @@ export class DrawItemsService {
     saveMoveResult(item) {
         if (this.keyframeService?.updateCurrentKeyframeIfActive(item)) return;
         this.projectService.save();
+    }
+
+    prepareKeyframedItemForEdit(item) {
+        this.keyframeService?.applyCurrentKeyframeGeometry(item);
     }
 
     isActiveMove(id, mode, pointIndex = null) {

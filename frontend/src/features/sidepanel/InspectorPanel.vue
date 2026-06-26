@@ -404,13 +404,11 @@ const startPlayerMove = (item) => {
 
 const updateItemPoint = (item, index, patch) => {
   if (item.type === "measure-grid") {
-    measure.updateFieldPoint(index, patch);
+    measure.updateFieldPoint(index, patch, item.id);
     return;
   }
   if (item.type === "measure-line") {
-    if (!item.points?.[index]) return;
-    Object.assign(item.points[index], patch);
-    project.save();
+    measure.updateMeasurePoint(item.id, index, patch);
     return;
   }
   draw.updateSelectedPoint(index, patch, item.id);

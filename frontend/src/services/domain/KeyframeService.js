@@ -161,6 +161,15 @@ export class KeyframeService {
         return !!item?.keyframes?.some((keyframe) => Math.abs((Number(keyframe.time) || 0) - (Number(time) || 0)) <= this.epsilon);
     }
 
+    applyCurrentKeyframeGeometry(item, time = this.timelineService.state.currentTime) {
+        if (!item?.keyframes?.length) return false;
+        const currentTime = Number(time) || 0;
+        const keyframe = item.keyframes.find((candidate) => Math.abs((Number(candidate.time) || 0) - currentTime) <= this.epsilon);
+        if (!keyframe) return false;
+        Object.assign(item, applyGeometry(item, keyframe.geometry || {}));
+        return true;
+    }
+
     updateCurrentKeyframeIfActive(item, time = this.timelineService.state.currentTime) {
         if (!this.hasKeyframeAt(item, time)) return false;
         this.addKeyframe(item, time);
