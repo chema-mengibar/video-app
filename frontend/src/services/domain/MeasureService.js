@@ -45,6 +45,7 @@ export class MeasureService {
             selectedItemId: null,
             draftItem: null,
             displayGrid: null,
+            selectedPlayerTeam: "guest",
             fieldDraft: defaultField(),
             playerConfig: {
                 widthPx: 22,
@@ -106,6 +107,18 @@ export class MeasureService {
 
     selectTool(tool) {
         this.state.selectedTool = this.state.selectedTool === tool ? null : tool;
+        this.state.editMode = null;
+        this.state.editPointIndex = null;
+    }
+
+    selectPlayerTool(team) {
+        const nextTeam = team === "home" ? "home" : "guest";
+        if (this.state.selectedTool === "player" && this.state.selectedPlayerTeam === nextTeam) {
+            this.selectTool("player");
+            return;
+        }
+        this.state.selectedPlayerTeam = nextTeam;
+        this.state.selectedTool = "player";
         this.state.editMode = null;
         this.state.editPointIndex = null;
     }
@@ -234,7 +247,8 @@ export class MeasureService {
                 point: clonePoint(point)
             };
             if (!isBall) {
-                item.team = "guest";
+                item.team = this.state.selectedPlayerTeam === "home" ? "home" : "guest";
+                item.color = item.team === "home" ? this.state.playerConfig.homeColor : this.state.playerConfig.guestColor;
             }
             this.items.push(item);
             this.state.selectedItemId = item.id;

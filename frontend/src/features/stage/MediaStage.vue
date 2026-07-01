@@ -77,7 +77,7 @@
             :fill="visibleGrid.color || 'var(--accent-primary)'"
             class="media-stage__field-square"
           />
-          <template v-for="(point, index) in measure.field.points" :key="`field-${index}`">
+          <template v-for="(point, index) in activeGridPoints" :key="`field-${index}`">
             <path
               v-if="showGridHandles"
               class="media-stage__handle media-stage__handle--plus"
@@ -207,7 +207,7 @@
           <button class="media-stage__zoom-reset" type="button" @click="resetZoom">100%</button>
           <div class="media-stage__view-switch" role="group" aria-label="Stage view">
             <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'video' }" @click="setStageView('video')">Canvas</button>
-            <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'split' }" @click="stageView = 'split'">Split</button>
+            <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'split' }" @click="setStageView('split')">Split</button>
             <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'court' }" @click="setStageView('court')">2D</button>
           </div>
           <IconButton icon="event" title="Add event" @click="events.add()" />
@@ -318,10 +318,11 @@ const visibleGrid = computed(() => visibleItems.value.find((item) => item.type =
 watchEffect(() => {
   measure.state.displayGrid = visibleGrid.value;
 });
-const showGridHandles = computed(() => !!visibleGrid.value && measure.gridItem.visible !== false);
+const showGridHandles = computed(() => !!visibleGrid.value && visibleGrid.value.visible !== false);
+const activeGridPoints = computed(() => visibleGrid.value?.points || []);
 const fieldPath = computed(() => {
   if (!visibleGrid.value) return "";
-  const [a, b, c, d] = measure.field.points || [];
+  const [a, b, c, d] = activeGridPoints.value;
   if (!a || !b || !c || !d) return "";
   return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${d.x} ${d.y} L ${c.x} ${c.y} Z`;
 });
@@ -397,6 +398,8 @@ const setStageView = (view) => {
   stageView.value = view;
   if (view === "video") {
     services.stageService.activePanel = "canvas";
+  } else if (view === "split") {
+    services.stageService.activePanel = services.stageService.activePanel === "court" ? "court" : "canvas";
   } else if (view === "court") {
     services.stageService.activePanel = "court";
   }
@@ -429,6 +432,7 @@ const onVideoMetadata = () => {
   if (videoRef.value?.videoWidth && videoRef.value?.videoHeight) {
     mediaAspect.value = videoRef.value.videoWidth / videoRef.value.videoHeight;
   }
+  syncVideoToTimeline(true);
   updateViewportAspect();
 };
 

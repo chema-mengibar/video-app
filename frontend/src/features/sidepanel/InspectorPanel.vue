@@ -222,6 +222,10 @@
           <span>1:1 velocity</span>
           <input v-model="cut.state.oneToOneVelocity" type="checkbox" />
         </label>
+        <label class="inspector__checkbox-row">
+          <span>Add draws</span>
+          <input v-model="cut.state.addDraws" type="checkbox" />
+        </label>
         <label>
           <span>Quality</span>
           <input v-model.number="cut.state.quality" type="range" min="50" max="100" step="5" />

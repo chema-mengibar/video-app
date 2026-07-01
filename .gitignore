@@ -77,3 +77,7 @@ vite.svg
 exports/
 temp/
 cache/
+
+
+# Tools
+tools/ffmpeg/bin/*.exe

@@ -1,4 +1,6 @@
 import os
+import shutil
+import subprocess
 import threading
 import time
 import uuid
@@ -14,7 +16,7 @@ class VideoEditorService:
         self.active_tasks = {}
         self._lock = threading.Lock()
 
-    def export_clip(self, input_path, start_msec, end_msec, freeze_data=None, playback_speed=1.0, quality=90, overlay_data=None):
+    def export_clip(self, input_path, start_msec, end_msec, freeze_data=None, playback_speed=1.0, quality=90, include_draws=True, overlay_data=None):
         try:
             input_path = self._clean_input_path(input_path)
             start_msec = int(start_msec)
@@ -29,7 +31,9 @@ class VideoEditorService:
             return {"status": "error", "message": "Invalid cut export parameters."}
 
         task_id = f"cut_{uuid.uuid4().hex}"
-        output_path = self._generate_output_path(input_path, start_msec, end_msec)
+        has_ffmpeg = bool(self._find_tool("ffmpeg"))
+        output_extension = ".mp4" if has_ffmpeg else ".webm"
+        output_path = self._generate_output_path(input_path, start_msec, end_msec, output_extension)
         self._set_task(task_id, {
             "task_id": task_id,
             "status": "processing",
@@ -39,9 +43,16 @@ class VideoEditorService:
             "estimated_seconds": None,
         })
 
+        can_stream_copy = not include_draws and abs(playback_speed - 1.0) < 0.001
+        target = self._fast_cut_task if can_stream_copy else self._render_task
+        args = (
+            (task_id, input_path, output_path, start_msec, end_msec)
+            if can_stream_copy
+            else (task_id, input_path, output_path, start_msec, end_msec, freeze_data, playback_speed, quality, overlay_data or {})
+        )
         thread = threading.Thread(
-            target=self._render_task,
-            args=(task_id, input_path, output_path, start_msec, end_msec, freeze_data, playback_speed, quality, overlay_data or {}),
+            target=target,
+            args=args,
             daemon=True,
         )
         thread.start()
@@ -50,7 +61,9 @@ class VideoEditorService:
     def get_export_status(self, task_id):
         with self._lock:
             task = self.active_tasks.get(task_id)
-            return dict(task) if task else {"status": "error", "message": "Export task was not found."}
+            if not task:
+                return {"status": "error", "message": "Export task was not found."}
+            return self._public_task(task)
 
     def cancel_export(self, task_id):
         with self._lock:
@@ -60,8 +73,159 @@ class VideoEditorService:
             if task.get("status") != "processing":
                 return dict(task)
             task["cancel_requested"] = True
+            process = task.get("process")
+            if process:
+                try:
+                    process.terminate()
+                except OSError:
+                    pass
             task["message"] = "Canceling export..."
-            return dict(task)
+            return self._public_task(task)
+
+    def _public_task(self, task):
+        return {key: value for key, value in task.items() if key not in {"process", "cancel_requested"}}
+
+    def _fast_cut_task(self, task_id, input_path, output_path, start, end):
+        ffmpeg = self._find_tool("ffmpeg")
+        if not ffmpeg:
+            self._set_task(task_id, {"message": "ffmpeg not found. Saving browser-compatible WebM..."})
+            self._render_task(task_id, input_path, output_path, start, end, None, 1.0, 90, {})
+            return
+
+        start_sec = max(0, start / 1000)
+        duration_sec = max(0.001, (end - start) / 1000)
+        stream_copy = self._can_stream_copy_for_web(input_path)
+        command = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            f"{start_sec:.3f}",
+            "-i",
+            input_path,
+            "-t",
+            f"{duration_sec:.3f}",
+        ]
+        if stream_copy:
+            command.extend([
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                "-avoid_negative_ts",
+                "make_zero",
+                "-movflags",
+                "+faststart",
+                output_path,
+            ])
+        else:
+            command.extend([
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a?",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "20",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "160k",
+                "-movflags",
+                "+faststart",
+                output_path,
+            ])
+
+        started_at = time.time()
+        self._set_task(task_id, {
+            "progress": 5,
+            "message": "Saving cut with fast mode..." if stream_copy else "Saving web-compatible cut...",
+            "estimated_seconds": None,
+        })
+
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self._set_task(task_id, {"process": process})
+
+        while process.poll() is None:
+            if self._is_cancel_requested(task_id):
+                try:
+                    process.terminate()
+                    process.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired):
+                    process.kill()
+                self._remove_partial_file(output_path)
+                self._set_task(task_id, {
+                    "status": "canceled",
+                    "progress": 0,
+                    "message": "Export canceled.",
+                    "estimated_seconds": 0,
+                    "path": "",
+                    "process": None,
+                })
+                return
+
+            elapsed = max(0, time.time() - started_at)
+            progress = min(95, 5 + int(elapsed * 5))
+            self._set_task(task_id, {
+                "progress": progress,
+                "message": f"{'Saving cut with fast mode' if stream_copy else 'Saving web-compatible cut'}... {progress}%",
+            })
+            time.sleep(0.5)
+
+        _, stderr = process.communicate()
+        self._set_task(task_id, {"process": None})
+        if process.returncode != 0:
+            self._remove_partial_file(output_path)
+            message = (stderr or "").strip() or "Fast cut failed."
+            self._set_task(task_id, {
+                "status": "error",
+                "message": message[-500:],
+                "estimated_seconds": 0,
+            })
+            return
+
+        self._set_task(task_id, {
+            "status": "done",
+            "progress": 100,
+            "message": "Cut saved.",
+            "estimated_seconds": 0,
+        })
+
+    def _can_stream_copy_for_web(self, input_path):
+        ffprobe = self._find_tool("ffprobe")
+        if not ffprobe:
+            return False
+
+        command = [
+            ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=codec_name,pix_fmt",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            input_path,
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+
+        values = [line.strip().lower() for line in result.stdout.splitlines() if line.strip()]
+        codec = values[0] if values else ""
+        pix_fmt = values[1] if len(values) > 1 else ""
+        if codec not in {"h264", "avc1"}:
+            return False
+        return not pix_fmt or pix_fmt in {"yuv420p", "yuvj420p"}
 
     def _render_task(self, task_id, input_path, output_path, start, end, freeze_data, playback_speed, quality, overlay_data):
         cap = cv2.VideoCapture(input_path)
@@ -79,7 +243,8 @@ class VideoEditorService:
             return
 
         output_fps = max(1, fps * playback_speed)
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        output_extension = os.path.splitext(output_path)[1].lower()
+        fourcc = cv2.VideoWriter_fourcc(*("VP80" if output_extension == ".webm" else "mp4v"))
         out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
         out.set(cv2.VIDEOWRITER_PROP_QUALITY, quality)
         if not out.isOpened():
@@ -139,12 +304,98 @@ class VideoEditorService:
             })
             return
 
+        if output_extension == ".webm":
+            self._set_task(task_id, {
+                "status": "done",
+                "progress": 100,
+                "message": "Cut saved.",
+                "estimated_seconds": 0,
+            })
+            return
+
+        self._set_task(task_id, {
+            "progress": 99,
+            "message": "Preparing video for app playback...",
+            "estimated_seconds": None,
+        })
+        if not self._make_web_compatible(output_path):
+            self._set_task(task_id, {
+                "status": "done",
+                "progress": 100,
+                "message": "Cut saved. Install ffmpeg for better app playback compatibility.",
+                "estimated_seconds": 0,
+            })
+            return
+
         self._set_task(task_id, {
             "status": "done",
             "progress": 100,
             "message": "Cut saved.",
             "estimated_seconds": 0,
         })
+
+    def _make_web_compatible(self, output_path):
+        ffmpeg = self._find_tool("ffmpeg")
+        if not ffmpeg:
+            return False
+
+        base, extension = os.path.splitext(output_path)
+        temp_path = f"{base}_web{extension or '.mp4'}"
+        command = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            output_path,
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a?",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+            "-movflags",
+            "+faststart",
+            temp_path,
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=None)
+            if result.returncode != 0 or not os.path.isfile(temp_path):
+                self._remove_partial_file(temp_path)
+                return False
+            os.replace(temp_path, output_path)
+            return True
+        except OSError:
+            self._remove_partial_file(temp_path)
+            return False
+
+    def _find_tool(self, name):
+        executable = f"{name}.exe" if os.name == "nt" else name
+        candidates = [
+            shutil.which(name),
+            os.path.join(os.getcwd(), executable),
+            os.path.join(os.getcwd(), "bin", executable),
+            os.path.join(os.getcwd(), "tools", "ffmpeg", "bin", executable),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), executable),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "backend", executable),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", executable),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "tools", "ffmpeg", "bin", executable),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                return candidate
+        return None
 
     def _update_progress(self, task_id, processed_frames, total_frames, started_at):
         progress = min(99, int((processed_frames / total_frames) * 100))
@@ -374,9 +625,9 @@ class VideoEditorService:
         millis = int((value % 1) * 1000)
         return f"00:{minutes:02d}:{seconds:02d},{millis:03d}"
 
-    def _generate_output_path(self, input_path, start_msec, end_msec):
+    def _generate_output_path(self, input_path, start_msec, end_msec, extension=".mp4"):
         base, _ = os.path.splitext(input_path)
-        return f"{base}_clip_{start_msec}_{end_msec}.mp4"
+        return f"{base}_clip_{start_msec}_{end_msec}{extension}"
 
     def _clean_input_path(self, input_path):
         clean_path = str(input_path or "").replace("file:///", "").replace("file://", "")

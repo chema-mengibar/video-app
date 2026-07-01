@@ -68,17 +68,17 @@
 
       <div v-else-if="activeTab === 'measure'" class="tools-panel__body">
         <div class="tools-panel__section-title">
-          <AppIcon name="straight" />
-          <span>Real dimensions</span>
+          <AppIcon name="square" />
+          <span>Grid</span>
         </div>
 
-        <div v-if="measure.gridItem" class="tools-panel__config">
+        <div class="tools-panel__config">
           <label class="tools-panel__field tools-panel__field--wide">
             <span>Preset</span>
             <select
-              :value="measure.gridItem.dimensionPreset || 'Basketball NBA'"
+              :value="gridPresetId"
               class="tools-panel__select"
-              @change="applyDimensionPreset($event.target.value)"
+              @change="setGridPreset($event.target.value)"
             >
               <option v-for="preset in dimensionPresets" :key="preset.id" :value="preset.id">
                 {{ preset.label }}
@@ -87,12 +87,13 @@
           </label>
           <label class="tools-panel__field tools-panel__field--wide">
             <span>AB m</span>
-            <input :value="measure.field.abMeters" class="tools-panel__input" type="number" min="0.1" step="0.1" :disabled="!canEditDimensions" @change="updateFreeDimension('abMeters', $event.target.value)" />
+            <input :value="gridWidth" class="tools-panel__input" type="number" min="0.1" step="0.1" :disabled="!canEditDimensions" @change="updateFreeDimension('abMeters', $event.target.value)" />
           </label>
           <label class="tools-panel__field tools-panel__field--wide">
             <span>AC m</span>
-            <input :value="measure.field.acMeters" class="tools-panel__input" type="number" min="0.1" step="0.1" :disabled="!canEditDimensions" @change="updateFreeDimension('acMeters', $event.target.value)" />
+            <input :value="gridLength" class="tools-panel__input" type="number" min="0.1" step="0.1" :disabled="!canEditDimensions" @change="updateFreeDimension('acMeters', $event.target.value)" />
           </label>
+          <button class="tools-panel__action" type="button" @click="addGrid">Add grid</button>
         </div>
 
         <div class="tools-panel__section-title tools-panel__section-title--spaced-small">
@@ -101,11 +102,6 @@
         </div>
 
         <div class="tools-panel__grid">
-          <IconButton
-            icon="square"
-            title="Grid"
-            @click="addGrid"
-          />
           <IconButton
             icon="measure"
             title="Linear measure"
@@ -131,13 +127,25 @@
           <span>Players</span>
         </div>
 
-        <div class="tools-panel__grid">
-          <IconButton
-            icon="player"
-            title="Player"
-            :active="measure.state.selectedTool === 'player'"
-            @click="selectMeasureTool('player')"
-          />
+        <div class="tools-panel__team-actions">
+          <button
+            class="tools-panel__team-button"
+            :class="{ 'tools-panel__team-button--active': measure.state.selectedTool === 'player' && measure.state.selectedPlayerTeam === 'guest' }"
+            type="button"
+            @click="selectPlayerTool('guest')"
+          >
+            <span class="tools-panel__team-swatch" :style="{ background: measure.state.playerConfig.guestColor }"></span>
+            <span>Guest</span>
+          </button>
+          <button
+            class="tools-panel__team-button"
+            :class="{ 'tools-panel__team-button--active': measure.state.selectedTool === 'player' && measure.state.selectedPlayerTeam === 'home' }"
+            type="button"
+            @click="selectPlayerTool('home')"
+          >
+            <span class="tools-panel__team-swatch" :style="{ background: measure.state.playerConfig.homeColor }"></span>
+            <span>Home</span>
+          </button>
           <IconButton
             icon="ball"
             title="Ball"
@@ -205,6 +213,8 @@ const services = inject(SERVICES_KEY);
 const draw = services.drawService;
 const measure = services.measureService;
 const activeTab = ref("draw");
+const selectedGridPresetId = ref("Basketball NBA");
+const freeGridDimensions = ref({ abMeters: 15.24, acMeters: 28.65 });
 
 const tools = [
   { id: "free-line", icon: "line", label: "Free line" },
@@ -231,7 +241,11 @@ const dimensionPresets = [
 ];
 
 const activeTool = computed(() => tools.find((tool) => tool.id === draw.state.selectedTool) || { icon: "draw", label: "No tool selected" });
-const canEditDimensions = computed(() => measure.gridItem?.dimensionPreset === "Free");
+const gridPresetId = computed(() => measure.gridItem?.dimensionPreset || selectedGridPresetId.value);
+const currentGridPreset = computed(() => dimensionPresets.find((preset) => preset.id === gridPresetId.value) || dimensionPresets[0]);
+const canEditDimensions = computed(() => gridPresetId.value === "Free");
+const gridWidth = computed(() => measure.gridItem?.abMeters || (canEditDimensions.value ? freeGridDimensions.value.abMeters : currentGridPreset.value.width));
+const gridLength = computed(() => measure.gridItem?.acMeters || (canEditDimensions.value ? freeGridDimensions.value.acMeters : currentGridPreset.value.length));
 
 const selectDrawTool = (tool) => {
   measure.clearTool();
@@ -241,6 +255,11 @@ const selectDrawTool = (tool) => {
 const selectMeasureTool = (tool) => {
   draw.state.selectedTool = null;
   measure.selectTool(tool);
+};
+
+const selectPlayerTool = (team) => {
+  draw.state.selectedTool = null;
+  measure.selectPlayerTool(team);
 };
 
 const addChrono = () => {
@@ -258,18 +277,33 @@ const addDelay = () => {
 const addGrid = () => {
   draw.state.selectedTool = null;
   measure.clearTool();
-  measure.addGrid();
+  const item = measure.addGrid();
+  const preset = currentGridPreset.value;
+  if (item && preset) {
+    measure.applyDimensionPreset({
+      ...preset,
+      width: canEditDimensions.value ? freeGridDimensions.value.abMeters : preset.width,
+      length: canEditDimensions.value ? freeGridDimensions.value.acMeters : preset.length
+    });
+  }
 };
 
-const applyDimensionPreset = (id) => {
+const setGridPreset = (id) => {
+  selectedGridPresetId.value = id;
   const preset = dimensionPresets.find((candidate) => candidate.id === id);
   if (!preset) return;
-  measure.applyDimensionPreset(preset);
+  if (measure.gridItem) {
+    measure.applyDimensionPreset(preset);
+  }
 };
 
 const updateFreeDimension = (key, value) => {
   if (!canEditDimensions.value) return;
-  measure.updateFieldDimensions({ [key]: Number(value) });
+  const nextValue = Number(value);
+  freeGridDimensions.value[key] = nextValue;
+  if (measure.gridItem) {
+    measure.updateFieldDimensions({ [key]: nextValue });
+  }
 };
 </script>
 
@@ -334,6 +368,38 @@ const updateFreeDimension = (key, value) => {
   margin-top: 18px;
 }
 
+.tools-panel__team-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 34px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.tools-panel__team-button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-button);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.tools-panel__team-button--active {
+  border-color: var(--accent-primary);
+  color: var(--surface-black);
+  background: var(--accent-primary);
+}
+
+.tools-panel__team-swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgb(0 0 0 / 0.45);
+}
+
 .tools-panel__config {
   display: grid;
   gap: 12px;
@@ -386,6 +452,18 @@ const updateFreeDimension = (key, value) => {
 
 .tools-panel__input:disabled {
   opacity: 0.55;
+}
+
+.tools-panel__action {
+  height: 30px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-button);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.tools-panel__action:hover {
+  border-color: var(--accent-primary);
 }
 
 .tools-panel__points {

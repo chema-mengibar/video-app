@@ -81,6 +81,7 @@ class ApiBridge:
             params.get("end"),
             playback_speed=params.get("playback_speed", 1),
             quality=params.get("quality", 90),
+            include_draws=params.get("include_draws", True),
             overlay_data=params.get("overlay_data"),
         )
 

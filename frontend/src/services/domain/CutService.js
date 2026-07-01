@@ -12,6 +12,7 @@ export class CutService {
             progress: 0,
             estimatedSeconds: null,
             oneToOneVelocity: true,
+            addDraws: true,
             quality: 90
         });
         this.pollTimer = null;
@@ -71,6 +72,7 @@ export class CutService {
             end: Math.round(end * 1000),
             playback_speed: this.state.oneToOneVelocity ? 1 : this.timelineService.state.speed,
             quality: this.state.quality,
+            include_draws: this.state.addDraws,
             overlay_data: JSON.parse(JSON.stringify(data))
         });
 
