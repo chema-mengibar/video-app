@@ -67,8 +67,17 @@
             :d="fieldPath"
             :stroke="visibleGrid.color || 'var(--accent-primary)'"
             :stroke-opacity="visibleGrid.opacity ?? 0.85"
-            :stroke-width="(visibleGrid.width || 2) / 6"
+            :style="{ strokeWidth: `${gridLineWidth}px` }"
             class="media-stage__field"
+          />
+          <path
+            v-for="line in projectionLines"
+            :key="line.key"
+            :d="line.path"
+            :stroke="visibleGrid.color || 'var(--accent-primary)'"
+            :stroke-opacity="gridProjectionOpacity"
+            :style="{ strokeWidth: `${gridLineWidth}px` }"
+            class="media-stage__projection-line"
           />
           <path
             v-for="path in chessboardPaths"
@@ -86,6 +95,14 @@
               @pointerdown.stop="startFieldPointDrag(index, $event)"
             />
             <text v-if="showGridHandles" class="media-stage__handle-label" :x="point.x + 1.4" :y="point.y - 1.4">{{ fieldLabels[index] }}</text>
+          </template>
+          <template v-if="showGridHandles && activeChessCenter">
+            <path
+              class="media-stage__handle media-stage__handle--plus"
+              :class="{ 'media-stage__handle--active': measure.isActiveChessCenter() }"
+              :d="plusHandlePath(activeChessCenter)"
+              @pointerdown.stop="startChessCenterDrag($event)"
+            />
           </template>
           <template v-for="item in measureLineItems" :key="`${item.id}-measure-label`">
             <text
@@ -320,6 +337,18 @@ watchEffect(() => {
 });
 const showGridHandles = computed(() => !!visibleGrid.value && visibleGrid.value.visible !== false);
 const activeGridPoints = computed(() => visibleGrid.value?.points || []);
+const activeChessCenter = computed(() => {
+  const grid = visibleGrid.value;
+  if (!grid?.chessboard) return null;
+  const width = Number(grid.abMeters) || 0;
+  const height = Number(grid.acMeters) || 0;
+  return measure.worldToImage({
+    x: Number.isFinite(Number(grid.chessCenterX)) ? Number(grid.chessCenterX) : width / 2,
+    y: Number.isFinite(Number(grid.chessCenterY)) ? Number(grid.chessCenterY) : height / 2
+  });
+});
+const gridLineWidth = computed(() => Math.max(1, Number(visibleGrid.value?.width) || 2));
+const gridProjectionOpacity = computed(() => Math.max(0, Math.min(1, (Number(visibleGrid.value?.opacity) || 0.85) / 2)));
 const fieldPath = computed(() => {
   if (!visibleGrid.value) return "";
   const [a, b, c, d] = activeGridPoints.value;
@@ -327,29 +356,84 @@ const fieldPath = computed(() => {
   return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${d.x} ${d.y} L ${c.x} ${c.y} Z`;
 });
 const chessboardPaths = computed(() => {
-  if (!visibleGrid.value?.chessboard) return [];
-  const width = Number(visibleGrid.value.abMeters) || 0;
-  const height = Number(visibleGrid.value.acMeters) || 0;
+  const grid = visibleGrid.value;
+  if (!grid?.chessboard) return [];
+  const width = Number(grid.abMeters) || 0;
+  const height = Number(grid.acMeters) || 0;
+  const squareSize = Math.max(0.01, Number(grid.chessSquareMeters) || 1);
   if (width <= 0 || height <= 0) return [];
-  const cols = 8;
-  const rows = 8;
+  const projectionDistance = Math.max(0.01, Number(grid.projectionDistance) || 1);
+  const projectionX = grid.projection ? Math.max(0, Math.round(Number(grid.projectionLoopsX) || 0)) * projectionDistance : 0;
+  const projectionY = grid.projection ? Math.max(0, Math.round(Number(grid.projectionLoopsY) || 0)) * projectionDistance : 0;
+  const xMin = -projectionX;
+  const xMax = width + projectionX;
+  const yMin = -projectionY;
+  const yMax = height + projectionY;
+  const originX = Number.isFinite(Number(grid.chessCenterX)) ? Number(grid.chessCenterX) : width / 2;
+  const originY = Number.isFinite(Number(grid.chessCenterY)) ? Number(grid.chessCenterY) : height / 2;
+  const startCol = Math.floor((xMin - originX) / squareSize);
+  const endCol = Math.ceil((xMax - originX) / squareSize);
+  const startRow = Math.floor((yMin - originY) / squareSize);
+  const endRow = Math.ceil((yMax - originY) / squareSize);
   const paths = [];
-  const pointAt = (u, v) => measure.worldToImage({
-    x: width * u,
-    y: height * v
-  });
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
-      if ((x + y) % 2 !== 0) continue;
-      const p1 = pointAt(x / cols, y / rows);
-      const p2 = pointAt((x + 1) / cols, y / rows);
-      const p3 = pointAt((x + 1) / cols, (y + 1) / rows);
-      const p4 = pointAt(x / cols, (y + 1) / rows);
+  const pointAt = (x, y) => measure.worldToImage({ x, y });
+  for (let row = startRow; row < endRow; row += 1) {
+    for (let col = startCol; col < endCol; col += 1) {
+      if ((col + row) % 2 !== 0) continue;
+      const left = Math.max(xMin, originX + col * squareSize);
+      const right = Math.min(xMax, originX + (col + 1) * squareSize);
+      const top = Math.max(yMin, originY + row * squareSize);
+      const bottom = Math.min(yMax, originY + (row + 1) * squareSize);
+      if (right <= left || bottom <= top) continue;
+      const p1 = pointAt(left, top);
+      const p2 = pointAt(right, top);
+      const p3 = pointAt(right, bottom);
+      const p4 = pointAt(left, bottom);
       if (!p1 || !p2 || !p3 || !p4) continue;
       paths.push(`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} Z`);
     }
   }
   return paths;
+});
+const projectionLines = computed(() => {
+  const grid = visibleGrid.value;
+  if (!grid?.projection) return [];
+
+  const width = Number(grid.abMeters) || 0;
+  const height = Number(grid.acMeters) || 0;
+  const distance = Math.max(0.01, Number(grid.projectionDistance) || 1);
+  const loopsX = Math.max(0, Math.round(Number(grid.projectionLoopsX) || 0));
+  const loopsY = Math.max(0, Math.round(Number(grid.projectionLoopsY) || 0));
+  if (width <= 0 || height <= 0 || (!loopsX && !loopsY)) return [];
+
+  const lines = [];
+  const xMin = -loopsX * distance;
+  const xMax = width + loopsX * distance;
+  const yMin = -loopsY * distance;
+  const yMax = height + loopsY * distance;
+  const addLine = (key, start, end) => {
+    const imageStart = measure.worldToImage(start);
+    const imageEnd = measure.worldToImage(end);
+    if (!imageStart || !imageEnd) return;
+    lines.push({
+      key,
+      path: `M ${imageStart.x} ${imageStart.y} L ${imageEnd.x} ${imageEnd.y}`
+    });
+  };
+
+  for (let index = 1; index <= loopsX; index += 1) {
+    const offset = index * distance;
+    addLine(`left-${index}`, { x: -offset, y: yMin }, { x: -offset, y: yMax });
+    addLine(`right-${index}`, { x: width + offset, y: yMin }, { x: width + offset, y: yMax });
+  }
+
+  for (let index = 1; index <= loopsY; index += 1) {
+    const offset = index * distance;
+    addLine(`top-${index}`, { x: xMin, y: -offset }, { x: xMax, y: -offset });
+    addLine(`bottom-${index}`, { x: xMin, y: height + offset }, { x: xMax, y: height + offset });
+  }
+
+  return lines;
 });
 
 const activeChrono = computed(() => visibleItems.value.find((item) => item.type === "chrono") || null);
@@ -585,6 +669,14 @@ const startHandleDrag = (handle, event) => {
 const startFieldPointDrag = (index, event) => {
   if (isMoveLocked.value && !measure.isActiveFieldPoint(index)) return;
   measure.startMoveFieldPoint(index);
+  isDrawing.value = true;
+  viewportRef.value?.setPointerCapture?.(event.pointerId);
+  measure.begin(pointFromEvent(event));
+};
+
+const startChessCenterDrag = (event) => {
+  if (isMoveLocked.value && !measure.isActiveChessCenter()) return;
+  measure.startMoveChessCenter();
   isDrawing.value = true;
   viewportRef.value?.setPointerCapture?.(event.pointerId);
   measure.begin(pointFromEvent(event));
@@ -914,12 +1006,38 @@ watch(stageView, async () => {
   updateViewportAspect();
 });
 
+const isTextInputTarget = (target) => {
+  const element = target instanceof Element ? target : null;
+  if (!element) return false;
+  return !!element.closest("input, textarea, select, [contenteditable='true']");
+};
+
 const onKeyDown = (event) => {
+  if (isTextInputTarget(event.target)) return;
+
   if (event.code === "Space") {
-    isSpacePressed.value = true;
     event.preventDefault();
+    timeline.togglePlay();
     return;
   }
+
+  if (event.key === "p" || event.key === "P") {
+    event.preventDefault();
+    events.add();
+    return;
+  }
+
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    if (event.shiftKey) {
+      timeline.seek(direction);
+    } else {
+      timeline.frame(direction);
+    }
+    return;
+  }
+
   if (event.key !== "Enter") return;
   if (measure.state.editMode) {
     event.preventDefault();
@@ -1063,8 +1181,14 @@ onBeforeUnmount(() => {
 
 .media-stage__field {
   fill: none;
-  stroke-dasharray: 1.8 1.8;
   pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.media-stage__projection-line {
+  fill: none;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
 }
 
 .media-stage__field-square {

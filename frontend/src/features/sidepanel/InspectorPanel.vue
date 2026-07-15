@@ -16,20 +16,49 @@
 
       <div v-if="activeTab === 'Events'" class="inspector__body inspector__body--events">
         <header class="inspector__events-header">
-          <span>Events</span>
+          <button class="inspector__link-action" type="button" @click="toggleAllEventsSelected">
+            {{ areAllEventsSelected ? "Unselect" : "Select" }}
+          </button>
           <div class="inspector__events-actions">
-            <button class="inspector__action" type="button" @click="events.add()">Add event</button>
-            <button class="inspector__action" type="button" @click="events.clear()">Delete all</button>
+            <select v-model="bulkAction" class="inspector__bulk-select">
+              <option value="">Action</option>
+              <option value="rename">Rename</option>
+              <option value="delete">Delete all</option>
+              <option value="team">Set team</option>
+            </select>
+            <button class="inspector__action inspector__action--small" type="button" :disabled="!canRunBulkAction" @click="openBulkDialog">
+              DO
+            </button>
           </div>
         </header>
 
-        <div v-for="(event, index) in project.state.data.events" :key="event.id" class="inspector__row inspector__row--event">
-          <span class="inspector__index" :class="{ 'inspector__index--active': isActiveEvent(event) }">{{ index + 1 }}</span>
-          <input class="inspector__text" :value="event.label" @change="events.update(event.id, { label: $event.target.value })" />
-          <span>{{ formatTime(event.time_from) }}</span>
-          <IconButton icon="jump" title="Jump to event" @click="events.jump(event)" />
-          <IconButton icon="trash" title="Delete event" @click="events.remove(event.id)" />
+        <div class="inspector__events-list">
+          <div
+            v-for="(event, index) in project.state.data.events"
+            :key="event.id"
+            class="inspector__row inspector__row--event"
+            :class="{ 'inspector__row--selected-event': selectedEventIds.has(event.id) }"
+            :style="eventBorderStyle(event)"
+          >
+            <input
+              class="inspector__event-check"
+              type="checkbox"
+              :checked="selectedEventIds.has(event.id)"
+              title="Select event"
+              @change="toggleEventSelected(event.id)"
+            />
+            <span class="inspector__index" :class="{ 'inspector__index--active': isActiveEvent(event) }">{{ index + 1 }}</span>
+            <input class="inspector__text" :value="event.label" @change="events.update(event.id, { label: $event.target.value })" />
+            <span>{{ formatTime(event.time_from) }}</span>
+            <IconButton icon="jump" title="Jump to event" @click="events.jump(event)" />
+            <IconButton icon="trash" title="Delete event" @click="removeEvent(event.id)" />
+          </div>
         </div>
+
+        <footer class="inspector__events-footer">
+          <IconButton icon="back" title="Jump to previous event" @click="jumpEvent(-1)" />
+          <IconButton icon="forward" title="Jump to next event (J)" @click="jumpEvent(1)" />
+        </footer>
       </div>
 
       <div v-else-if="activeTab === 'Items'" class="inspector__body">
@@ -149,13 +178,48 @@
               <span>Chess grid</span>
               <input :checked="!!item.chessboard" type="checkbox" @change="updateItem(item, { chessboard: $event.target.checked })" />
             </label>
-            <label>
-              <span>Left/right m</span>
-              <input :value="item.paddingX || 0" type="number" min="0" step="0.1" @change="updateGridPadding(item, 'paddingX', $event.target.value)" />
+            <label class="inspector__point inspector__point--config">
+              <span>Chess center</span>
+              <input :value="round(chessCenter(item).x)" type="number" step="0.1" @change="updateChessCenter(item, { x: Number($event.target.value) })" />
+              <input :value="round(chessCenter(item).y)" type="number" step="0.1" @change="updateChessCenter(item, { y: Number($event.target.value) })" />
+              <IconButton icon="cursor" title="Drag chess center" :active="measure.isActiveChessCenter()" @click.stop="startChessCenterMove(item)" />
             </label>
             <label>
-              <span>Top/bottom m</span>
-              <input :value="item.paddingY || 0" type="number" min="0" step="0.1" @change="updateGridPadding(item, 'paddingY', $event.target.value)" />
+              <span>Square m</span>
+              <input :value="item.chessSquareMeters || 1" type="number" min="0.01" step="0.1" @change="updateGridDimension(item, 'chessSquareMeters', $event.target.value)" />
+            </label>
+            <label>
+              <span>AB / CD m</span>
+              <input :value="item.abMeters || 0" type="number" min="0.1" step="0.1" @change="updateGridDimension(item, 'abMeters', $event.target.value)" />
+            </label>
+            <label>
+              <span>AC / BD m</span>
+              <input :value="item.acMeters || 0" type="number" min="0.1" step="0.1" @change="updateGridDimension(item, 'acMeters', $event.target.value)" />
+            </label>
+            <label>
+              <span>Line width</span>
+              <input :value="item.width" type="number" min="1" max="12" @change="updateItem(item, { width: Number($event.target.value) })" />
+            </label>
+            <label>
+              <span>Opacity</span>
+              <input :value="item.opacity" type="number" min="0" max="1" step="0.1" @change="updateItem(item, { opacity: Number($event.target.value) })" />
+            </label>
+            <div class="inspector__config-divider"></div>
+            <label class="inspector__checkbox">
+              <span>Grid projection</span>
+              <input :checked="!!item.projection" type="checkbox" @change="updateItem(item, { projection: $event.target.checked })" />
+            </label>
+            <label>
+              <span>Loop side AB - CD</span>
+              <input :value="item.projectionLoopsY ?? 3" type="number" min="0" step="1" @change="updateGridProjection(item, 'projectionLoopsY', $event.target.value)" />
+            </label>
+            <label>
+              <span>Loop side AC - BD</span>
+              <input :value="item.projectionLoopsX ?? 4" type="number" min="0" step="1" @change="updateGridProjection(item, 'projectionLoopsX', $event.target.value)" />
+            </label>
+            <label>
+              <span>Distance m</span>
+              <input :value="item.projectionDistance || 1" type="number" min="0.01" step="0.1" @change="updateGridProjection(item, 'projectionDistance', $event.target.value)" />
             </label>
           </div>
           <div v-if="isSelectedItem(item)" class="inspector__item-config">
@@ -192,11 +256,11 @@
               <span>Fill opacity</span>
               <input :value="fillOpacityValue(item)" type="number" min="0" max="1" step="0.05" @change="updateItem(item, { fillOpacity: Number($event.target.value) })" />
             </label>
-            <label v-if="!['player', 'ball'].includes(item.type)">
-              <span>Width</span>
+            <label v-if="!['player', 'ball', 'measure-grid'].includes(item.type)">
+              <span>Line width</span>
               <input :value="item.width" type="number" min="1" max="12" @change="updateItem(item, { width: Number($event.target.value) })" />
             </label>
-            <label>
+            <label v-if="item.type !== 'measure-grid'">
               <span>Opacity</span>
               <input :value="item.opacity" type="number" min="0" max="1" step="0.1" @change="updateItem(item, { opacity: Number($event.target.value) })" />
             </label>
@@ -263,11 +327,43 @@
         </button>
       </div>
     </div>
+
+    <div v-if="bulkDialog" class="inspector__modal-backdrop" @click.self="closeBulkDialog">
+      <section class="inspector__modal" role="dialog" aria-modal="true">
+        <header class="inspector__modal-header">
+          <span>{{ bulkDialogTitle }}</span>
+        </header>
+
+        <label v-if="bulkDialog === 'rename'" class="inspector__modal-field">
+          <span>Label</span>
+          <input v-model="bulkRenameLabel" type="text" />
+        </label>
+
+        <p v-else-if="bulkDialog === 'delete'" class="inspector__modal-copy">
+          Are you sure?
+        </p>
+
+        <label v-else-if="bulkDialog === 'team'" class="inspector__modal-field">
+          <span>Team</span>
+          <select v-model="bulkTeam">
+            <option value="guest">Guest</option>
+            <option value="home">Home</option>
+          </select>
+        </label>
+
+        <footer class="inspector__modal-actions">
+          <button class="inspector__action" type="button" @click="closeBulkDialog">Cancel</button>
+          <button class="inspector__action" type="button" @click="applyBulkDialog">
+            {{ bulkDialog === "delete" ? "Delete" : "Save" }}
+          </button>
+        </footer>
+      </section>
+    </div>
   </EditorPanel>
 </template>
 
 <script setup>
-import { inject, reactive, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, reactive, ref, watch } from "vue";
 import EditorPanel from "@/components/common/EditorPanel.vue";
 import IconButton from "@/components/common/IconButton.vue";
 import { SERVICES_KEY } from "@/services/ServiceRegistry.js";
@@ -284,6 +380,22 @@ const tabs = ["Events", "Items", "Cut"];
 const activeTab = ref("Events");
 const collapsedItems = reactive({});
 const fillModes = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "soft-light", "hard-light"];
+const selectedEventIds = ref(new Set());
+const bulkAction = ref("");
+const bulkDialog = ref("");
+const bulkRenameLabel = ref("");
+const bulkTeam = ref("guest");
+
+const eventList = computed(() => project.state.data.events || []);
+const selectedEvents = computed(() => eventList.value.filter((event) => selectedEventIds.value.has(event.id)));
+const areAllEventsSelected = computed(() => eventList.value.length > 0 && selectedEventIds.value.size === eventList.value.length);
+const canRunBulkAction = computed(() => !!bulkAction.value && selectedEventIds.value.size > 0);
+const bulkDialogTitle = computed(() => {
+  if (bulkDialog.value === "rename") return "Rename selected events";
+  if (bulkDialog.value === "delete") return "Delete selected events";
+  if (bulkDialog.value === "team") return "Set team";
+  return "";
+});
 
 const formatTime = (time) => {
   const value = Math.max(0, Number.isFinite(time) ? time : 0);
@@ -301,10 +413,87 @@ const pointLabel = (item, index) => {
   return `Point ${index + 1}`;
 };
 
+const chessCenter = (item) => ({
+  x: Number.isFinite(Number(item.chessCenterX)) ? Number(item.chessCenterX) : (Number(item.abMeters) || 0) / 2,
+  y: Number.isFinite(Number(item.chessCenterY)) ? Number(item.chessCenterY) : (Number(item.acMeters) || 0) / 2
+});
+
 const isActiveEvent = (event) => {
   const eventTime = Number(event?.time_from);
   if (!Number.isFinite(eventTime)) return false;
   return Math.abs(timeline.state.currentTime - eventTime) <= 0.15;
+};
+
+const eventTeamColor = (event) => {
+  if (event?.team === "home") return measure.state.playerConfig.homeColor;
+  if (event?.team === "guest") return measure.state.playerConfig.guestColor;
+  return "transparent";
+};
+
+const eventBorderStyle = (event) => ({
+  borderLeftColor: eventTeamColor(event)
+});
+
+const toggleEventSelected = (id) => {
+  const next = new Set(selectedEventIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  selectedEventIds.value = next;
+};
+
+const toggleAllEventsSelected = () => {
+  selectedEventIds.value = areAllEventsSelected.value ? new Set() : new Set(eventList.value.map((event) => event.id));
+};
+
+const openBulkDialog = () => {
+  if (!canRunBulkAction.value) return;
+  bulkDialog.value = bulkAction.value;
+  if (bulkDialog.value === "rename") {
+    bulkRenameLabel.value = selectedEvents.value[0]?.label || "";
+  }
+  if (bulkDialog.value === "team") {
+    bulkTeam.value = selectedEvents.value[0]?.team || "guest";
+  }
+};
+
+const closeBulkDialog = () => {
+  bulkDialog.value = "";
+};
+
+const applyBulkDialog = async () => {
+  const selection = [...selectedEvents.value];
+  if (bulkDialog.value === "rename") {
+    await Promise.all(selection.map((event) => events.update(event.id, { label: bulkRenameLabel.value })));
+  } else if (bulkDialog.value === "delete") {
+    await Promise.all(selection.map((event) => events.remove(event.id)));
+    selectedEventIds.value = new Set();
+  } else if (bulkDialog.value === "team") {
+    await Promise.all(selection.map((event) => events.update(event.id, { team: bulkTeam.value })));
+  }
+  closeBulkDialog();
+};
+
+const removeEvent = async (id) => {
+  await events.remove(id);
+  const next = new Set(selectedEventIds.value);
+  next.delete(id);
+  selectedEventIds.value = next;
+};
+
+const jumpEvent = (direction) => {
+  const sortedEvents = [...eventList.value]
+    .filter((event) => Number.isFinite(Number(event.time_from)))
+    .sort((a, b) => Number(a.time_from) - Number(b.time_from));
+  if (!sortedEvents.length) return;
+
+  const currentTime = Number(timeline.state.currentTime) || 0;
+  const target = direction > 0
+    ? sortedEvents.find((event) => Number(event.time_from) > currentTime + 0.001) || sortedEvents[0]
+    : [...sortedEvents].reverse().find((event) => Number(event.time_from) < currentTime - 0.001) || sortedEvents[sortedEvents.length - 1];
+  events.jump(target);
 };
 
 const isCollapsed = (id) => !!collapsedItems[id];
@@ -357,6 +546,17 @@ const startPointMove = (item, index) => {
     return;
   }
   draw.startMovePoint(item.id, index);
+};
+
+const startChessCenterMove = (item) => {
+  if (measure.state.editMode && !measure.isActiveChessCenter()) {
+    measure.finishMove();
+  }
+  if (draw.state.mode === "move") {
+    draw.finishMoveMode();
+  }
+  selectItem(item);
+  measure.startMoveChessCenter();
 };
 
 const startItemMove = (item) => {
@@ -416,6 +616,14 @@ const updateItemPoint = (item, index, patch) => {
     return;
   }
   draw.updateSelectedPoint(index, patch, item.id);
+};
+
+const updateChessCenter = (item, patch) => {
+  const center = {
+    ...chessCenter(item),
+    ...patch
+  };
+  measure.updateChessCenter(center, item.id);
 };
 
 const isMeasureItem = (item) => ["measure-line", "measure-grid", "chrono", "player", "ball", "delay"].includes(item.type);
@@ -505,9 +713,20 @@ const updateItem = (item, patch) => {
   project.save();
 };
 
-const updateGridPadding = (item, key, value) => {
+const updateGridDimension = (item, key, value) => {
+  const min = key === "chessSquareMeters" ? 0.01 : 0.1;
   updateItem(item, {
-    [key]: Math.max(0, Number(value) || 0)
+    [key]: Math.max(min, Number(value) || min)
+  });
+};
+
+const updateGridProjection = (item, key, value) => {
+  const number = Number(value);
+  const nextValue = key === "projectionDistance"
+    ? Math.max(0.01, Number.isFinite(number) ? number : 1)
+    : Math.max(0, Math.round(Number.isFinite(number) ? number : 0));
+  updateItem(item, {
+    [key]: nextValue
   });
 };
 
@@ -547,6 +766,35 @@ watch(
     draw.consumeFocusItem();
   }
 );
+
+watch(
+  () => eventList.value.map((event) => event.id),
+  (eventIds) => {
+    const existingIds = new Set(eventIds);
+    const next = new Set([...selectedEventIds.value].filter((id) => existingIds.has(id)));
+    if (next.size !== selectedEventIds.value.size) {
+      selectedEventIds.value = next;
+    }
+  }
+);
+
+const isTextInputTarget = (target) => {
+  const element = target instanceof Element ? target : null;
+  return !!element?.closest("input, textarea, select, [contenteditable='true']");
+};
+
+const onInspectorKeyDown = (event) => {
+  if (activeTab.value !== "Events" || isTextInputTarget(event.target) || bulkDialog.value) return;
+  if (event.key !== "j" && event.key !== "J") return;
+  event.preventDefault();
+  jumpEvent(event.shiftKey ? -1 : 1);
+};
+
+window.addEventListener("keydown", onInspectorKeyDown);
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onInspectorKeyDown);
+});
 </script>
 
 <style scoped>
@@ -582,7 +830,11 @@ watch(
 }
 
 .inspector__body--events {
-  display: block;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 0;
 }
 
 .inspector__events-header {
@@ -591,8 +843,7 @@ watch(
   justify-content: space-between;
   gap: 12px;
   min-height: 36px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--surface-border);
 }
 
@@ -608,7 +859,41 @@ watch(
 
 .inspector__events-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.inspector__link-action {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.inspector__bulk-select {
+  min-width: 112px;
+  height: 30px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-button);
+  color: var(--text-color);
+}
+
+.inspector__events-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px;
+}
+
+.inspector__events-footer {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--surface-border);
+  background: var(--surface-control);
 }
 
 .inspector__row {
@@ -621,7 +906,8 @@ watch(
 }
 
 .inspector__row--event {
-  grid-template-columns: 28px minmax(70px, 1fr) auto 36px 36px;
+  grid-template-columns: 18px 28px minmax(70px, 1fr) auto 36px 36px;
+  border-left: 4px solid transparent;
 }
 
 .inspector__row--item {
@@ -655,8 +941,15 @@ watch(
   color: #000;
 }
 
-.inspector__row:nth-child(even) {
+.inspector__row:nth-child(even),
+.inspector__row--selected-event {
   background: var(--surface-header);
+}
+
+.inspector__event-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent-primary);
 }
 
 .inspector__text,
@@ -713,9 +1006,23 @@ watch(
   gap: 6px;
 }
 
+.inspector__item-config label {
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.inspector__item-config .inspector__point--config {
+  grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 30px;
+}
+
 .inspector__item-config .inspector__checkbox {
   grid-template-columns: 112px 18px;
   justify-content: start;
+}
+
+.inspector__config-divider {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--surface-border);
 }
 
 .inspector__point input,
@@ -819,5 +1126,53 @@ watch(
 
 .inspector__status--error {
   color: #ff7878;
+}
+
+.inspector__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.58);
+}
+
+.inspector__modal {
+  width: min(340px, calc(100vw - 40px));
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-panel);
+  color: var(--text-color);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.4);
+}
+
+.inspector__modal-header {
+  font-weight: 600;
+}
+
+.inspector__modal-field {
+  display: grid;
+  gap: 8px;
+}
+
+.inspector__modal-field input,
+.inspector__modal-field select {
+  height: 32px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-button);
+  color: var(--text-color);
+}
+
+.inspector__modal-copy {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.inspector__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

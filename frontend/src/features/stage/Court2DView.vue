@@ -13,11 +13,24 @@
     >
       <rect class="court-2d__area" :x="viewBox.x" :y="viewBox.y" :width="viewBox.width" :height="viewBox.height" />
       <rect class="court-2d__field" x="0" y="0" :width="courtWidth" :height="courtHeight" />
+      <rect
+        v-for="square in chessboardSquares"
+        :key="square.key"
+        class="court-2d__chess-square"
+        :x="square.x"
+        :y="square.y"
+        :width="square.width"
+        :height="square.height"
+        :fill="gridColor"
+      />
       <path
         v-for="line in gridLines"
         :key="line.key"
         class="court-2d__grid-line"
         :d="line.path"
+        :stroke="gridColor"
+        :stroke-opacity="line.opacity"
+        :stroke-width="gridStrokeWidth"
       />
       <g v-for="vertex in gridVertices" :key="vertex.label" class="court-2d__vertex">
         <circle :cx="vertex.x" :cy="vertex.y" :r="vertexRadius" />
@@ -104,15 +117,29 @@ const courtWidth = computed(() => Number(measure.gridItem?.abMeters) || 28.65);
 const courtHeight = computed(() => Number(measure.gridItem?.acMeters) || 15.24);
 const paddingX = computed(() => Math.max(0, Number(measure.gridItem?.paddingX) || 0));
 const paddingY = computed(() => Math.max(0, Number(measure.gridItem?.paddingY) || 0));
+const projectionDistance = computed(() => Math.max(0.01, Number(measure.gridItem?.projectionDistance) || 1));
+const projectionLoopsX = computed(() => measure.gridItem?.projection ? Math.max(0, Math.round(Number(measure.gridItem?.projectionLoopsX) || 0)) : 0);
+const projectionLoopsY = computed(() => measure.gridItem?.projection ? Math.max(0, Math.round(Number(measure.gridItem?.projectionLoopsY) || 0)) : 0);
+const projectionPaddingX = computed(() => projectionLoopsX.value * projectionDistance.value);
+const projectionPaddingY = computed(() => projectionLoopsY.value * projectionDistance.value);
+const viewPaddingX = computed(() => Math.max(paddingX.value, projectionPaddingX.value));
+const viewPaddingY = computed(() => Math.max(paddingY.value, projectionPaddingY.value));
 const viewBox = computed(() => ({
-  x: -paddingX.value,
-  y: -paddingY.value,
-  width: courtWidth.value + paddingX.value * 2,
-  height: courtHeight.value + paddingY.value * 2
+  x: -viewPaddingX.value,
+  y: -viewPaddingY.value,
+  width: courtWidth.value + viewPaddingX.value * 2,
+  height: courtHeight.value + viewPaddingY.value * 2
 }));
 const worldSpan = computed(() => Math.min(viewBox.value.width, viewBox.value.height));
 const playerRadius = computed(() => worldSpan.value * 0.018);
 const vertexRadius = computed(() => worldSpan.value * 0.014);
+const gridColor = computed(() => measure.gridItem?.color || "#45FFA2");
+const gridOpacity = computed(() => Math.max(0, Math.min(1, Number(measure.gridItem?.opacity) || 0.85)));
+const projectionOpacity = computed(() => gridOpacity.value / 2);
+const gridStrokeWidth = computed(() => Math.max(0.025, (Number(measure.gridItem?.width) || 2) * 0.025));
+const chessSquareMeters = computed(() => Math.max(0.01, Number(measure.gridItem?.chessSquareMeters) || 1));
+const chessCenterX = computed(() => Number.isFinite(Number(measure.gridItem?.chessCenterX)) ? Number(measure.gridItem.chessCenterX) : courtWidth.value / 2);
+const chessCenterY = computed(() => Number.isFinite(Number(measure.gridItem?.chessCenterY)) ? Number(measure.gridItem.chessCenterY) : courtHeight.value / 2);
 const drawableTypes = ["free-line", "straight-line", "polyline", "triangle", "square", "polygon", "circle"];
 const gridVertices = computed(() => {
   const offset = Math.min(courtWidth.value, courtHeight.value) * 0.035;
@@ -124,30 +151,68 @@ const gridVertices = computed(() => {
   ];
 });
 const gridLines = computed(() => {
-  const cols = 8;
-  const rows = 8;
   const lines = [];
-  const xMin = -paddingX.value;
-  const xMax = courtWidth.value + paddingX.value;
-  const yMin = -paddingY.value;
-  const yMax = courtHeight.value + paddingY.value;
-  if (paddingX.value > 0) {
-    lines.push({ key: "pad-left", path: `M 0 ${yMin} L 0 ${yMax}` });
-    lines.push({ key: "pad-right", path: `M ${courtWidth.value} ${yMin} L ${courtWidth.value} ${yMax}` });
+  const xMin = -viewPaddingX.value;
+  const xMax = courtWidth.value + viewPaddingX.value;
+  const yMin = -viewPaddingY.value;
+  const yMax = courtHeight.value + viewPaddingY.value;
+
+  if (measure.gridItem?.chessboard) {
+    const startCol = Math.floor((xMin - chessCenterX.value) / chessSquareMeters.value);
+    const endCol = Math.ceil((xMax - chessCenterX.value) / chessSquareMeters.value);
+    const startRow = Math.floor((yMin - chessCenterY.value) / chessSquareMeters.value);
+    const endRow = Math.ceil((yMax - chessCenterY.value) / chessSquareMeters.value);
+    for (let col = startCol + 1; col < endCol; col += 1) {
+      const x = chessCenterX.value + col * chessSquareMeters.value;
+      lines.push({ key: `chess-x-${col}`, path: `M ${x} ${yMin} L ${x} ${yMax}`, opacity: gridOpacity.value });
+    }
+    for (let row = startRow + 1; row < endRow; row += 1) {
+      const y = chessCenterY.value + row * chessSquareMeters.value;
+      lines.push({ key: `chess-y-${row}`, path: `M ${xMin} ${y} L ${xMax} ${y}`, opacity: gridOpacity.value });
+    }
   }
-  if (paddingY.value > 0) {
-    lines.push({ key: "pad-top", path: `M ${xMin} 0 L ${xMax} 0` });
-    lines.push({ key: "pad-bottom", path: `M ${xMin} ${courtHeight.value} L ${xMax} ${courtHeight.value}` });
+
+  for (let index = 1; index <= projectionLoopsX.value; index += 1) {
+    const offset = index * projectionDistance.value;
+    lines.push({ key: `projection-left-${index}`, path: `M ${-offset} ${yMin} L ${-offset} ${yMax}`, opacity: projectionOpacity.value });
+    lines.push({ key: `projection-right-${index}`, path: `M ${courtWidth.value + offset} ${yMin} L ${courtWidth.value + offset} ${yMax}`, opacity: projectionOpacity.value });
   }
-  for (let index = 1; index < cols; index += 1) {
-    const x = (courtWidth.value / cols) * index;
-    lines.push({ key: `x-${index}`, path: `M ${x} ${yMin} L ${x} ${yMax}` });
-  }
-  for (let index = 1; index < rows; index += 1) {
-    const y = (courtHeight.value / rows) * index;
-    lines.push({ key: `y-${index}`, path: `M ${xMin} ${y} L ${xMax} ${y}` });
+  for (let index = 1; index <= projectionLoopsY.value; index += 1) {
+    const offset = index * projectionDistance.value;
+    lines.push({ key: `projection-top-${index}`, path: `M ${xMin} ${-offset} L ${xMax} ${-offset}`, opacity: projectionOpacity.value });
+    lines.push({ key: `projection-bottom-${index}`, path: `M ${xMin} ${courtHeight.value + offset} L ${xMax} ${courtHeight.value + offset}`, opacity: projectionOpacity.value });
   }
   return lines;
+});
+const chessboardSquares = computed(() => {
+  if (!measure.gridItem?.chessboard) return [];
+  const squares = [];
+  const xMin = -viewPaddingX.value;
+  const xMax = courtWidth.value + viewPaddingX.value;
+  const yMin = -viewPaddingY.value;
+  const yMax = courtHeight.value + viewPaddingY.value;
+  const startCol = Math.floor((xMin - chessCenterX.value) / chessSquareMeters.value);
+  const endCol = Math.ceil((xMax - chessCenterX.value) / chessSquareMeters.value);
+  const startRow = Math.floor((yMin - chessCenterY.value) / chessSquareMeters.value);
+  const endRow = Math.ceil((yMax - chessCenterY.value) / chessSquareMeters.value);
+  for (let row = startRow; row < endRow; row += 1) {
+    for (let col = startCol; col < endCol; col += 1) {
+      if ((row + col) % 2 !== 0) continue;
+      const left = Math.max(xMin, chessCenterX.value + col * chessSquareMeters.value);
+      const right = Math.min(xMax, chessCenterX.value + (col + 1) * chessSquareMeters.value);
+      const top = Math.max(yMin, chessCenterY.value + row * chessSquareMeters.value);
+      const bottom = Math.min(yMax, chessCenterY.value + (row + 1) * chessSquareMeters.value);
+      if (right <= left || bottom <= top) continue;
+      squares.push({
+        key: `chess-${row}-${col}`,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top
+      });
+    }
+  }
+  return squares;
 });
 
 const playerDots = computed(() => visibleItems.value
@@ -475,8 +540,11 @@ const formatTime = (time) => {
 
 .court-2d__grid-line {
   fill: none;
-  stroke: rgb(232 232 232 / 0.25);
-  stroke-width: 0.025;
+  pointer-events: none;
+}
+
+.court-2d__chess-square {
+  opacity: 0.16;
   pointer-events: none;
 }
 

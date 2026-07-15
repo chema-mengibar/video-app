@@ -12,7 +12,14 @@ const defaultField = () => ({
     abMeters: 28.65,
     acMeters: 15.24,
     paddingX: 0,
-    paddingY: 0
+    paddingY: 0,
+    chessSquareMeters: 1,
+    chessCenterX: null,
+    chessCenterY: null,
+    projection: false,
+    projectionLoopsX: 4,
+    projectionLoopsY: 3,
+    projectionDistance: 1
 });
 
 const defaultGridItem = (source = defaultField()) => ({
@@ -31,7 +38,14 @@ const defaultGridItem = (source = defaultField()) => ({
     abMeters: source.abMeters,
     acMeters: source.acMeters,
     paddingX: Number(source.paddingX) || 0,
-    paddingY: Number(source.paddingY) || 0
+    paddingY: Number(source.paddingY) || 0,
+    chessSquareMeters: Number(source.chessSquareMeters) || 1,
+    chessCenterX: Number.isFinite(Number(source.chessCenterX)) ? Number(source.chessCenterX) : null,
+    chessCenterY: Number.isFinite(Number(source.chessCenterY)) ? Number(source.chessCenterY) : null,
+    projection: !!source.projection,
+    projectionLoopsX: Number(source.projectionLoopsX) || 4,
+    projectionLoopsY: Number(source.projectionLoopsY) || 3,
+    projectionDistance: Number(source.projectionDistance) || 1
 });
 
 export class MeasureService {
@@ -87,6 +101,13 @@ export class MeasureService {
         grid.acMeters = Number(grid.acMeters) || 15.24;
         grid.paddingX = Math.max(0, Number(grid.paddingX) || 0);
         grid.paddingY = Math.max(0, Number(grid.paddingY) || 0);
+        grid.chessSquareMeters = Math.max(0.01, Number(grid.chessSquareMeters) || 1);
+        grid.chessCenterX = Number.isFinite(Number(grid.chessCenterX)) ? Number(grid.chessCenterX) : grid.abMeters / 2;
+        grid.chessCenterY = Number.isFinite(Number(grid.chessCenterY)) ? Number(grid.chessCenterY) : grid.acMeters / 2;
+        grid.projection = !!grid.projection;
+        grid.projectionLoopsX = Math.max(0, Math.round(Number(grid.projectionLoopsX) || 0));
+        grid.projectionLoopsY = Math.max(0, Math.round(Number(grid.projectionLoopsY) || 0));
+        grid.projectionDistance = Math.max(0.01, Number(grid.projectionDistance) || 1);
         return grid;
     }
 
@@ -158,6 +179,23 @@ export class MeasureService {
         return this.state.editMode === "field-point" && this.state.editPointIndex === index;
     }
 
+    startMoveChessCenter() {
+        const grid = this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
+        if (!grid) return;
+        if (this.isActiveChessCenter()) {
+            this.finishMove();
+            return;
+        }
+        this.state.selectedTool = null;
+        this.state.editMode = "chess-center";
+        this.state.editPointIndex = null;
+    }
+
+    isActiveChessCenter() {
+        return this.state.editMode === "chess-center";
+    }
+
     isActiveMeasurePoint(id, index) {
         return this.state.editMode === "measure-point" && this.state.selectedItemId === id && this.state.editPointIndex === index;
     }
@@ -167,6 +205,15 @@ export class MeasureService {
         this.prepareKeyframedItemForEdit(grid);
         if (!grid?.points?.[index]) return;
         Object.assign(grid.points[index], patch);
+        this.saveMoveResult(grid);
+    }
+
+    updateChessCenter(point, id = null) {
+        const grid = id ? this.items.find((item) => item.id === id) : this.sourceGridItem;
+        this.prepareKeyframedItemForEdit(grid);
+        if (!grid || !point) return;
+        grid.chessCenterX = Number(point.x) || 0;
+        grid.chessCenterY = Number(point.y) || 0;
         this.saveMoveResult(grid);
     }
 
@@ -220,6 +267,12 @@ export class MeasureService {
             this.prepareKeyframedItemForEdit(this.sourceGridItem);
             this.dragStart = clonePoint(point);
             this.moveStartPoints = this.field.points.map(clonePoint);
+            return;
+        }
+
+        if (this.state.editMode === "chess-center") {
+            this.prepareKeyframedItemForEdit(this.sourceGridItem);
+            this.dragStart = clonePoint(point);
             return;
         }
 
@@ -346,6 +399,14 @@ export class MeasureService {
             return;
         }
 
+        if (this.state.editMode === "chess-center") {
+            const worldPoint = this.imageToWorld(point);
+            if (!worldPoint) return;
+            this.field.chessCenterX = worldPoint.x;
+            this.field.chessCenterY = worldPoint.y;
+            return;
+        }
+
         if (this.state.editMode === "measure-point") {
             const item = this.selectedItem;
             const index = this.state.editPointIndex;
@@ -380,7 +441,7 @@ export class MeasureService {
         this.dragStart = null;
     }
 
-    addGrid() {
+    addGrid(preset = null) {
         const existingGrid = this.gridItem;
         const currentTime = this.timelineService.state.currentTime;
         if (existingGrid && this.isItemActiveAt(existingGrid, currentTime)) {
@@ -390,7 +451,14 @@ export class MeasureService {
 
         const start = currentTime;
         const item = {
-            ...defaultGridItem(this.data.measure?.field || this.state.fieldDraft),
+            ...defaultGridItem({
+                ...(this.data.measure?.field || this.state.fieldDraft),
+                ...(preset ? {
+                    dimensionPreset: preset.id,
+                    abMeters: preset.width,
+                    acMeters: preset.length
+                } : {})
+            }),
             time_from: start,
             time_to: start + 3
         };
@@ -554,7 +622,7 @@ export class MeasureService {
     }
 
     currentEditedItem() {
-        if (this.state.editMode === "field-point") {
+        if (this.state.editMode === "field-point" || this.state.editMode === "chess-center") {
             return this.sourceGridItem;
         }
         return this.selectedItem;

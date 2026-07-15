@@ -11,7 +11,14 @@ const geometryKeys = [
     "abMeters",
     "acMeters",
     "paddingX",
-    "paddingY"
+    "paddingY",
+    "chessSquareMeters",
+    "chessCenterX",
+    "chessCenterY",
+    "projection",
+    "projectionLoopsX",
+    "projectionLoopsY",
+    "projectionDistance"
 ];
 
 const numberOrNull = (value) => Number.isFinite(Number(value)) ? Number(value) : null;

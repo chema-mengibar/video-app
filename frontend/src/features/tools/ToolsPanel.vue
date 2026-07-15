@@ -93,6 +93,35 @@
             <span>AC m</span>
             <input :value="gridLength" class="tools-panel__input" type="number" min="0.1" step="0.1" :disabled="!canEditDimensions" @change="updateFreeDimension('acMeters', $event.target.value)" />
           </label>
+          <div class="tools-panel__court-thumb" aria-hidden="true">
+            <svg class="tools-panel__court-svg" viewBox="0 0 120 86" preserveAspectRatio="xMidYMid meet">
+              <rect
+                class="tools-panel__court-field"
+                :x="courtThumbRect.x"
+                :y="courtThumbRect.y"
+                :width="courtThumbRect.width"
+                :height="courtThumbRect.height"
+              />
+              <line
+                class="tools-panel__court-midline"
+                :x1="courtThumbRect.x + courtThumbRect.width / 2"
+                :y1="courtThumbRect.y"
+                :x2="courtThumbRect.x + courtThumbRect.width / 2"
+                :y2="courtThumbRect.y + courtThumbRect.height"
+              />
+              <line
+                class="tools-panel__court-midline"
+                :x1="courtThumbRect.x"
+                :y1="courtThumbRect.y + courtThumbRect.height / 2"
+                :x2="courtThumbRect.x + courtThumbRect.width"
+                :y2="courtThumbRect.y + courtThumbRect.height / 2"
+              />
+              <g v-for="vertex in courtThumbVertices" :key="vertex.label" class="tools-panel__court-vertex">
+                <circle :cx="vertex.x" :cy="vertex.y" r="2.5" />
+                <text :x="vertex.labelX" :y="vertex.labelY">{{ vertex.label }}</text>
+              </g>
+            </svg>
+          </div>
           <button class="tools-panel__action" type="button" @click="addGrid">Add grid</button>
         </div>
 
@@ -246,6 +275,31 @@ const currentGridPreset = computed(() => dimensionPresets.find((preset) => prese
 const canEditDimensions = computed(() => gridPresetId.value === "Free");
 const gridWidth = computed(() => measure.gridItem?.abMeters || (canEditDimensions.value ? freeGridDimensions.value.abMeters : currentGridPreset.value.width));
 const gridLength = computed(() => measure.gridItem?.acMeters || (canEditDimensions.value ? freeGridDimensions.value.acMeters : currentGridPreset.value.length));
+const courtThumbRect = computed(() => {
+  const width = Math.max(0.1, Number(gridWidth.value) || 0.1);
+  const length = Math.max(0.1, Number(gridLength.value) || 0.1);
+  const maxWidth = 92;
+  const maxHeight = 58;
+  const scale = Math.min(maxWidth / width, maxHeight / length);
+  const rectWidth = width * scale;
+  const rectHeight = length * scale;
+  return {
+    x: (120 - rectWidth) / 2,
+    y: (86 - rectHeight) / 2,
+    width: rectWidth,
+    height: rectHeight
+  };
+});
+const courtThumbVertices = computed(() => {
+  const rect = courtThumbRect.value;
+  const offset = 6;
+  return [
+    { label: "A", x: rect.x, y: rect.y, labelX: rect.x - offset, labelY: rect.y - 4 },
+    { label: "B", x: rect.x + rect.width, y: rect.y, labelX: rect.x + rect.width + 4, labelY: rect.y - 4 },
+    { label: "C", x: rect.x, y: rect.y + rect.height, labelX: rect.x - offset, labelY: rect.y + rect.height + 10 },
+    { label: "D", x: rect.x + rect.width, y: rect.y + rect.height, labelX: rect.x + rect.width + 4, labelY: rect.y + rect.height + 10 }
+  ];
+});
 
 const selectDrawTool = (tool) => {
   measure.clearTool();
@@ -277,13 +331,23 @@ const addDelay = () => {
 const addGrid = () => {
   draw.state.selectedTool = null;
   measure.clearTool();
-  const item = measure.addGrid();
-  const preset = currentGridPreset.value;
+  const selectedPresetId = selectedGridPresetId.value;
+  const preset = dimensionPresets.find((candidate) => candidate.id === selectedPresetId) || dimensionPresets[0];
+  const isFreePreset = selectedPresetId === "Free";
+  const dimensions = {
+    width: isFreePreset ? freeGridDimensions.value.abMeters : preset.width,
+    length: isFreePreset ? freeGridDimensions.value.acMeters : preset.length
+  };
+  const item = measure.addGrid({
+    ...preset,
+    width: dimensions.width,
+    length: dimensions.length
+  });
   if (item && preset) {
     measure.applyDimensionPreset({
       ...preset,
-      width: canEditDimensions.value ? freeGridDimensions.value.abMeters : preset.width,
-      length: canEditDimensions.value ? freeGridDimensions.value.acMeters : preset.length
+      width: dimensions.width,
+      length: dimensions.length
     });
   }
 };
@@ -464,6 +528,50 @@ const updateFreeDimension = (key, value) => {
 
 .tools-panel__action:hover {
   border-color: var(--accent-primary);
+}
+
+.tools-panel__court-thumb {
+  height: 102px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--surface-border);
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    #1a2422;
+  background-size: 12px 12px;
+}
+
+.tools-panel__court-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tools-panel__court-field {
+  fill: rgb(69 255 162 / 0.12);
+  stroke: var(--text-color);
+  stroke-width: 1.4;
+}
+
+.tools-panel__court-midline {
+  stroke: rgb(255 255 255 / 0.42);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 3;
+}
+
+.tools-panel__court-vertex circle {
+  fill: var(--accent-primary);
+  stroke: #0d0d0d;
+  stroke-width: 1;
+}
+
+.tools-panel__court-vertex text {
+  fill: var(--text-color);
+  stroke: #0d0d0d;
+  stroke-width: 2;
+  paint-order: stroke;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .tools-panel__points {
