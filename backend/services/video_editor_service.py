@@ -441,6 +441,8 @@ class VideoEditorService:
                 self._draw_delay_indicator(frame, item, frame_time)
             elif item_type == "measure-line":
                 self._draw_polyline_item(frame, item, width, height, label=True)
+            elif item_type == "vertical-projection":
+                self._draw_goal_projection_item(frame, item, width, height)
             elif item_type in {"player", "ball"}:
                 self._draw_marker_item(frame, item, width, height)
             elif item_type == "circle":
@@ -488,6 +490,24 @@ class VideoEditorService:
             label_text = item.get("label") or "Measure"
             cv2.putText(frame, label_text, center, cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 4, cv2.LINE_AA)
             cv2.putText(frame, label_text, center, cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2, cv2.LINE_AA)
+
+    def _draw_goal_projection_item(self, frame, item, width, height):
+        color = self._bgr(item.get("color"), (69, 255, 162))
+        thickness = max(1, int(self._number(item.get("width"), 2)))
+        points = self._points(item.get("points"), width, height)
+        if len(points) < 5:
+            return
+
+        a, b, projection_b, projection_a, c = points[:5]
+        fill_opacity = max(0, min(self._number(item.get("fillOpacity"), 0.18), 1))
+        if fill_opacity > 0:
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [np.array([a, b, c], dtype=np.int32)], color, cv2.LINE_AA)
+            cv2.fillPoly(overlay, [np.array([projection_a, projection_b, c], dtype=np.int32)], color, cv2.LINE_AA)
+            cv2.addWeighted(overlay, fill_opacity, frame, 1 - fill_opacity, 0, frame)
+
+        for start, end in ((a, b), (projection_a, projection_b), (a, c), (b, c), (projection_a, c), (projection_b, c)):
+            cv2.line(frame, start, end, color, thickness, cv2.LINE_AA)
 
     def _draw_marker_item(self, frame, item, width, height):
         point = self._point(item.get("point"), width, height)

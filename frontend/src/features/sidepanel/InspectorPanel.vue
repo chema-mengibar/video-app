@@ -56,7 +56,7 @@
         </div>
 
         <footer class="inspector__events-footer">
-          <IconButton icon="back" title="Jump to previous event" @click="jumpEvent(-1)" />
+          <IconButton icon="back" title="Jump to previous event (Shift+J)" @click="jumpEvent(-1)" />
           <IconButton icon="forward" title="Jump to next event (J)" @click="jumpEvent(1)" />
         </footer>
       </div>
@@ -93,14 +93,14 @@
               @click.stop="updateItem(item, { visible: item.visible === false })"
             />
             <IconButton
-              v-if="!['measure-grid', 'measure-line', 'chrono', 'player', 'ball', 'delay'].includes(item.type)"
+              v-if="!['measure-grid', 'measure-line', 'chrono', 'player', 'ball', 'delay', 'vertical-projection'].includes(item.type)"
               icon="move"
               title="Move item"
               :active="isActiveItemMove(item)"
               @click.stop="startItemMove(item)"
             />
             <IconButton
-              v-if="item.type === 'measure-line'"
+              v-if="['measure-line', 'vertical-projection'].includes(item.type)"
               icon="move"
               title="Move measure"
               :active="isActiveMeasureItemMove(item)"
@@ -112,6 +112,12 @@
               :title="item.type === 'ball' ? 'Move ball' : 'Move player'"
               :active="isActiveMeasureItemMove(item)"
               @click.stop="startPlayerMove(item)"
+            />
+            <IconButton
+              v-if="item.type === 'vertical-projection'"
+              icon="triangle"
+              title="Analyse"
+              @click.stop="openAnalyse(item)"
             />
             <IconButton icon="trash" title="Delete item" @click.stop="draw.deleteItem(item.id)" />
           </div>
@@ -410,6 +416,7 @@ const gridPointLabels = ["A", "B", "C", "D"];
 
 const pointLabel = (item, index) => {
   if (item.type === "measure-grid") return gridPointLabels[index] || `Point ${index + 1}`;
+  if (item.type === "vertical-projection") return ["u", "v", "V", "U", "C"][index] || `Point ${index + 1}`;
   return `Point ${index + 1}`;
 };
 
@@ -523,7 +530,7 @@ const isActiveMeasureItemMove = (item) => {
 
 const isActivePointMove = (item, index) => {
   if (item.type === "measure-grid") return measure.isActiveFieldPoint(index);
-  if (item.type === "measure-line") return measure.isActiveMeasurePoint(item.id, index);
+  if (["measure-line", "vertical-projection"].includes(item.type)) return measure.isActiveMeasurePoint(item.id, index);
   return draw.isActiveMove(item.id, "point", index);
 };
 
@@ -538,7 +545,7 @@ const startPointMove = (item, index) => {
     measure.startMoveFieldPoint(index);
     return;
   }
-  if (item.type === "measure-line") {
+  if (["measure-line", "vertical-projection"].includes(item.type)) {
     if (draw.state.mode === "move") {
       draw.finishMoveMode();
     }
@@ -606,12 +613,17 @@ const startPlayerMove = (item) => {
   measure.startImageMoveSelected(item.id);
 };
 
+const openAnalyse = (item) => {
+  selectItem(item);
+  measure.state.analysisItemId = item.id;
+};
+
 const updateItemPoint = (item, index, patch) => {
   if (item.type === "measure-grid") {
     measure.updateFieldPoint(index, patch, item.id);
     return;
   }
-  if (item.type === "measure-line") {
+  if (["measure-line", "vertical-projection"].includes(item.type)) {
     measure.updateMeasurePoint(item.id, index, patch);
     return;
   }
@@ -626,7 +638,7 @@ const updateChessCenter = (item, patch) => {
   measure.updateChessCenter(center, item.id);
 };
 
-const isMeasureItem = (item) => ["measure-line", "measure-grid", "chrono", "player", "ball", "delay"].includes(item.type);
+const isMeasureItem = (item) => ["measure-line", "measure-grid", "chrono", "player", "ball", "delay", "vertical-projection"].includes(item.type);
 
 const isSelectedItem = (item) => {
   return isMeasureItem(item) ? item.id === measure.state.selectedItemId : item.id === draw.state.selectedItemId;
@@ -911,7 +923,7 @@ onBeforeUnmount(() => {
 }
 
 .inspector__row--item {
-  grid-template-columns: 24px 14px minmax(70px, 1fr) auto 36px 36px 36px;
+  grid-template-columns: 24px 14px minmax(70px, 1fr) auto 36px 36px 36px 36px;
 }
 
 .inspector__row--event :deep(.icon-button) {

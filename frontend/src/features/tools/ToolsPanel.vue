@@ -26,6 +26,14 @@
         >
           Players
         </button>
+        <button
+          class="tools-panel__tab"
+          :class="{ 'tools-panel__tab--active': activeTab === 'analyse' }"
+          type="button"
+          @click="activeTab = 'analyse'"
+        >
+          Analyse
+        </button>
       </div>
 
       <div v-if="activeTab === 'draw'" class="tools-panel__body">
@@ -147,6 +155,11 @@
             title="Delay"
             @click="addDelay"
           />
+          <IconButton
+            icon="triangle"
+            title="Goal projection"
+            @click="addGoalProjection"
+          />
         </div>
       </div>
 
@@ -227,12 +240,103 @@
           </label>
         </div>
       </div>
+
+      <div v-else-if="activeTab === 'analyse'" class="tools-panel__body">
+        <div class="tools-panel__section-title">
+          <AppIcon name="triangle" />
+          <span>Analyse</span>
+        </div>
+
+        <div v-if="activeAnalysisItem" class="tools-panel__config">
+          <div class="tools-panel__measure-grid">
+            <label>
+              <span>V-C</span>
+              <input :value="analysisMeasures.vc" type="number" min="0.01" step="0.1" @change="updateAnalysisMeasure('vc', $event.target.value)" />
+            </label>
+            <label>
+              <span>U-V</span>
+              <input :value="analysisMeasures.uv" type="number" min="0.01" step="0.1" @change="updateAnalysisMeasure('uv', $event.target.value)" />
+            </label>
+            <label>
+              <span>U-u</span>
+              <input :value="analysisMeasures.uHeight" type="number" min="0.01" step="0.1" @change="updateAnalysisMeasure('uHeight', $event.target.value)" />
+            </label>
+            <label>
+              <span>U-C</span>
+              <input :value="analysisMeasures.uc" type="number" min="0.01" step="0.1" @change="updateAnalysisMeasure('uc', $event.target.value)" />
+            </label>
+            <label>
+              <span>V-v</span>
+              <input :value="analysisMeasures.vHeight" type="number" min="0.01" step="0.1" @change="updateAnalysisMeasure('vHeight', $event.target.value)" />
+            </label>
+            <label>
+              <span>players h</span>
+              <input :value="analysisMeasures.playerHeight" type="number" min="0" step="0.1" @change="updateAnalysisMeasure('playerHeight', $event.target.value)" />
+            </label>
+          </div>
+
+          <svg class="tools-panel__analyse-svg" viewBox="0 0 220 170" preserveAspectRatio="xMidYMid meet">
+            <path :d="analysisTrianglePath" class="tools-panel__analyse-triangle" />
+            <text
+              v-for="label in arealLabels"
+              :key="label.text"
+              class="tools-panel__analyse-label"
+              :x="label.x"
+              :y="label.y"
+            >
+              {{ label.text }}
+            </text>
+            <g v-for="point in arealObstaclePoints" :key="point.id">
+              <circle
+                :cx="point.x"
+                :cy="point.y"
+                :r="point.radius"
+                :fill="point.color"
+                :class="point.inside ? 'tools-panel__analyse-point--inside' : 'tools-panel__analyse-point--outside'"
+              />
+            </g>
+          </svg>
+
+          <svg class="tools-panel__analyse-svg" viewBox="0 0 220 170" preserveAspectRatio="xMidYMid meet">
+            <rect
+              class="tools-panel__analyse-front-rect"
+              :x="frontRect.x"
+              :y="frontRect.y"
+              :width="frontRect.width"
+              :height="frontRect.height"
+            />
+            <line class="tools-panel__analyse-ground" :x1="frontRect.x" :y1="frontGroundY" :x2="frontRect.x + frontRect.width" :y2="frontGroundY" />
+            <rect class="tools-panel__analyse-c-marker" :x="frontCX - 3" :y="frontGroundY - 3" width="6" height="6" />
+            <text
+              v-for="label in frontLabels"
+              :key="label.text"
+              class="tools-panel__analyse-label"
+              :x="label.x"
+              :y="label.y"
+            >
+              {{ label.text }}
+            </text>
+            <g v-for="point in frontObstaclePoints" :key="point.id">
+              <rect
+                :x="point.x - point.width / 2"
+                :y="point.y"
+                :width="point.width"
+                :height="point.height"
+                :fill="point.color"
+                class="tools-panel__analyse-front-obstacle"
+              />
+            </g>
+          </svg>
+        </div>
+
+        <p v-else class="tools-panel__empty">Select a vertical projection item and click Analyse.</p>
+      </div>
     </div>
   </EditorPanel>
 </template>
 
 <script setup>
-import { computed, inject, ref } from "vue";
+import { computed, inject, ref, watch } from "vue";
 import EditorPanel from "@/components/common/EditorPanel.vue";
 import IconButton from "@/components/common/IconButton.vue";
 import AppIcon from "@/components/common/AppIcon.vue";
@@ -241,6 +345,7 @@ import { SERVICES_KEY } from "@/services/ServiceRegistry.js";
 const services = inject(SERVICES_KEY);
 const draw = services.drawService;
 const measure = services.measureService;
+const project = services.projectService;
 const activeTab = ref("draw");
 const selectedGridPresetId = ref("Basketball NBA");
 const freeGridDimensions = ref({ abMeters: 15.24, acMeters: 28.65 });
@@ -300,6 +405,148 @@ const courtThumbVertices = computed(() => {
     { label: "D", x: rect.x + rect.width, y: rect.y + rect.height, labelX: rect.x + rect.width + 4, labelY: rect.y + rect.height + 10 }
   ];
 });
+const activeAnalysisItem = computed(() => {
+  return (project.state.data.items || []).find((item) => item.id === measure.state.analysisItemId && item.type === "vertical-projection") || null;
+});
+const analysisCandidates = computed(() => {
+  const selectedProjectionId = activeAnalysisItem.value?.id;
+  const currentTime = services.timelineService.state.currentTime;
+  return (project.state.data.items || [])
+    .filter((item) => {
+      if (item.id === selectedProjectionId || !["player", "ball"].includes(item.type) || !item.point) return false;
+      const from = Number.isFinite(item.time_from) ? item.time_from : 0;
+      const to = Number.isFinite(item.time_to) ? item.time_to : from;
+      return currentTime >= from && currentTime <= to;
+    });
+});
+const analysisMeasures = computed(() => ({
+  vc: Number(activeAnalysisItem.value?.analysisMeasures?.vc) || 8,
+  uc: Number(activeAnalysisItem.value?.analysisMeasures?.uc) || 8,
+  uv: Number(activeAnalysisItem.value?.analysisMeasures?.uv) || 4,
+  uHeight: Number(activeAnalysisItem.value?.analysisMeasures?.uHeight) || 2,
+  vHeight: Number(activeAnalysisItem.value?.analysisMeasures?.vHeight) || 2,
+  playerHeight: Number(activeAnalysisItem.value?.analysisMeasures?.playerHeight) || 1.8
+}));
+const analysisBase = computed(() => {
+  const [a, b, projectionB, projectionA, c] = activeAnalysisItem.value?.points || [];
+  if (!a || !b || !projectionB || !projectionA || !c) return null;
+  return {
+    sourceA: projectionA,
+    sourceB: projectionB,
+    sourceC: c,
+    sourceU: projectionA,
+    sourceV: projectionB,
+    sourceu: a,
+    sourcev: b
+  };
+});
+const arealView = computed(() => {
+  const measures = analysisMeasures.value;
+  const uv = Math.max(0.01, Math.min(measures.uv, measures.uc + measures.vc - 0.01));
+  const cX = Math.max(0, Math.min(uv, (measures.uc ** 2 - measures.vc ** 2 + uv ** 2) / (2 * uv)));
+  const height = Math.max(0.01, Math.sqrt(Math.max(measures.uc ** 2 - cX ** 2, 0.01)));
+  const maxWidth = 168;
+  const maxHeight = 118;
+  const scale = Math.min(maxWidth / uv, maxHeight / height);
+  const width = uv * scale;
+  const viewHeight = height * scale;
+  const left = (220 - width) / 2;
+  const baseY = 136;
+  return {
+    scale,
+    U: { x: left, y: baseY },
+    V: { x: left + width, y: baseY },
+    C: { x: left + cX * scale, y: baseY - viewHeight },
+    width,
+    height,
+    cX
+  };
+});
+const analysisTrianglePath = computed(() => {
+  const view = arealView.value;
+  if (!view) return "";
+  return `M ${view.U.x} ${view.U.y} L ${view.V.x} ${view.V.y} L ${view.C.x} ${view.C.y} Z`;
+});
+const arealLabels = computed(() => {
+  const view = arealView.value;
+  return [
+    { text: "U", x: view.U.x - 11, y: view.U.y + 18 },
+    { text: "V", x: view.V.x + 8, y: view.V.y + 18 },
+    { text: "C", x: view.C.x + 8, y: view.C.y - 8 }
+  ];
+});
+const projectedObstacles = computed(() => {
+  const base = analysisBase.value;
+  if (!base) return [];
+  return analysisCandidates.value
+    .map((item) => {
+      const mapped = mapPointToAnalysisWeights(item.point, base);
+      return mapped?.inside ? {
+        id: item.id,
+        label: item.label || item.type,
+        color: obstacleColor(item),
+        heightMeters: Number(item.heightMeters) || analysisMeasures.value.playerHeight,
+        ...mapped
+      } : null;
+    })
+    .filter(Boolean);
+});
+const arealObstaclePoints = computed(() => {
+  const view = arealView.value;
+  return projectedObstacles.value.map((point) => ({
+    ...point,
+    x: point.u * view.U.x + point.v * view.V.x + point.w * view.C.x,
+    y: point.u * view.U.y + point.v * view.V.y + point.w * view.C.y,
+    radius: 5
+  }));
+});
+const frontRect = computed(() => {
+  const measures = analysisMeasures.value;
+  const maxHeightMeters = Math.max(measures.uHeight, measures.vHeight, measures.playerHeight, 0.1);
+  const scaleY = 100 / maxHeightMeters;
+  const width = Math.max(42, Math.min(156, measures.uv * 24));
+  return {
+    x: (220 - width) / 2,
+    y: 34,
+    width,
+    height: Math.max(28, Math.max(measures.uHeight, measures.vHeight) * scaleY),
+    scaleY
+  };
+});
+const frontGroundY = computed(() => frontRect.value.y + frontRect.value.height + 20);
+const frontCRatio = computed(() => {
+  const view = arealView.value;
+  if (!view?.width) return 0.5;
+  return Math.max(0, Math.min(1, (view.C.x - view.U.x) / view.width));
+});
+const frontCX = computed(() => frontRect.value.x + frontRect.value.width * frontCRatio.value);
+const frontLabels = computed(() => {
+  const rect = frontRect.value;
+  const ground = frontGroundY.value;
+  const cX = frontCX.value;
+  return [
+    { text: "u", x: rect.x - 11, y: rect.y - 8 },
+    { text: "v", x: rect.x + rect.width + 7, y: rect.y - 8 },
+    { text: "U", x: rect.x - 11, y: rect.y + rect.height + 16 },
+    { text: "V", x: rect.x + rect.width + 7, y: rect.y + rect.height + 16 },
+    { text: "C", x: cX + 8, y: ground + 14 }
+  ];
+});
+const frontObstaclePoints = computed(() => {
+  const rect = frontRect.value;
+  const cRatio = frontCRatio.value;
+  return projectedObstacles.value.map((point) => {
+    const ratio = Math.max(0, Math.min(1, point.v + point.w * cRatio));
+    const height = Math.max(4, point.heightMeters * rect.scaleY);
+    return {
+      ...point,
+      x: rect.x + rect.width * ratio,
+      y: rect.y + rect.height - height,
+      width: 5,
+      height
+    };
+  });
+});
 
 const selectDrawTool = (tool) => {
   measure.clearTool();
@@ -327,6 +574,51 @@ const addDelay = () => {
   measure.clearTool();
   measure.addDelay();
 };
+
+const addGoalProjection = () => {
+  draw.state.selectedTool = null;
+  measure.clearTool();
+  measure.addGoalProjection();
+};
+
+const updateAnalysisMeasure = (key, value) => {
+  if (!activeAnalysisItem.value) return;
+  const nextValue = Math.max(0, Number(value) || 0);
+  activeAnalysisItem.value.analysisMeasures = {
+    ...(activeAnalysisItem.value.analysisMeasures || {}),
+    [key]: key === "playerHeight" ? nextValue : Math.max(0.01, nextValue)
+  };
+  project.save();
+};
+
+const mapPointToAnalysisWeights = (point, base) => {
+  const denominator = (base.sourceA.y - base.sourceC.y) * (base.sourceB.x - base.sourceC.x) + (base.sourceC.x - base.sourceA.x) * (base.sourceB.y - base.sourceC.y);
+  if (Math.abs(denominator) < 0.000001) return null;
+  const u = ((point.y - base.sourceC.y) * (base.sourceB.x - base.sourceC.x) + (base.sourceC.x - point.x) * (base.sourceB.y - base.sourceC.y)) / denominator;
+  const v = ((base.sourceA.y - base.sourceC.y) * (point.x - base.sourceC.x) + (point.y - base.sourceC.y) * (base.sourceC.x - base.sourceA.x)) / denominator;
+  const w = 1 - u - v;
+  return {
+    u,
+    v,
+    w,
+    inside: u >= 0 && v >= 0 && w >= 0
+  };
+};
+
+const obstacleColor = (item) => {
+  if (item.type === "ball") return item.color || measure.state.playerConfig.ballColor;
+  if (item.team === "home") return item.color || measure.state.playerConfig.homeColor;
+  return item.color || measure.state.playerConfig.guestColor;
+};
+
+watch(
+  () => measure.state.analysisItemId,
+  (id) => {
+    if (id) {
+      activeTab.value = "analyse";
+    }
+  }
+);
 
 const addGrid = () => {
   draw.state.selectedTool = null;
@@ -470,6 +762,28 @@ const updateFreeDimension = (key, value) => {
   margin-top: 24px;
 }
 
+.tools-panel__measure-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.tools-panel__measure-grid label {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.tools-panel__measure-grid input {
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  padding: 0 8px;
+  background: var(--surface-button);
+  color: var(--text-color);
+}
+
 .tools-panel__line,
 .tools-panel__dash {
   width: 42px;
@@ -512,6 +826,15 @@ const updateFreeDimension = (key, value) => {
 
 .tools-panel__select {
   width: 180px;
+}
+
+.tools-panel__input--wide {
+  width: 180px;
+}
+
+.tools-panel__field--stacked {
+  display: grid;
+  align-items: start;
 }
 
 .tools-panel__input:disabled {
@@ -583,6 +906,72 @@ const updateFreeDimension = (key, value) => {
 .tools-panel__empty {
   margin-top: 18px;
   color: var(--text-muted);
+}
+
+.tools-panel__analyse-svg {
+  width: 100%;
+  height: 210px;
+  border: 1px solid var(--surface-border);
+  background: #050505;
+}
+
+.tools-panel__analyse-triangle {
+  fill: rgb(69 255 162 / 0.13);
+  stroke: var(--accent-primary);
+  stroke-width: 2;
+}
+
+.tools-panel__analyse-goal {
+  fill: rgb(75 131 216 / 0.18);
+  stroke: #4b83d8;
+  stroke-width: 2;
+}
+
+.tools-panel__analyse-front-rect {
+  fill: #838383;
+  stroke: #d0d0d0;
+  stroke-width: 1;
+}
+
+.tools-panel__analyse-ground {
+  stroke: #d0d0d0;
+  stroke-width: 1;
+}
+
+.tools-panel__analyse-c-marker {
+  fill: #4b83d8;
+  stroke: #d0d0d0;
+  stroke-width: 1;
+}
+
+.tools-panel__analyse-front-obstacle {
+  stroke: #ffff00;
+  stroke-width: 1;
+}
+
+.tools-panel__analyse-label,
+.tools-panel__analyse-player-label {
+  fill: var(--text-color);
+  stroke: var(--surface-black);
+  stroke-width: 3;
+  paint-order: stroke;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tools-panel__analyse-player-label {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.tools-panel__analyse-point--inside {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.tools-panel__analyse-point--outside {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
 }
 
 .tools-panel__point {

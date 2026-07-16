@@ -62,6 +62,34 @@
             class="media-stage__shape"
             @pointerdown.stop="selectCanvasItem(item, $event)"
           />
+          <template v-for="item in projectionItems" :key="`${item.id}-projection`">
+            <path
+              :d="goalProjectionFillPath(item)"
+              :fill="item.color"
+              :fill-opacity="item.fillOpacity ?? 0.18"
+              class="media-stage__projection-fill"
+              @pointerdown.stop="selectCanvasItem(item, $event)"
+            />
+            <path
+              :d="goalProjectionLinePath(item)"
+              :stroke="item.color"
+              :stroke-width="strokeWidthFor(item)"
+              :stroke-opacity="strokeOpacityFor(item)"
+              class="media-stage__projection-line"
+              @pointerdown.stop="selectCanvasItem(item, $event)"
+            />
+            <template v-if="isSelectedCanvasItem(item)">
+              <template v-for="(point, index) in item.points" :key="`${item.id}-point-${index}`">
+                <path
+                  class="media-stage__handle media-stage__handle--plus"
+                  :class="{ 'media-stage__handle--active': measure.isActiveMeasurePoint(item.id, index) }"
+                  :d="plusHandlePath(point)"
+                  @pointerdown.stop="startMeasurePointDrag(item.id, index, $event)"
+                />
+                <text class="media-stage__handle-label" :x="point.x + 1.4" :y="point.y - 1.4">{{ projectionPointLabel(index) }}</text>
+              </template>
+            </template>
+          </template>
           <path
             v-if="fieldPath"
             :d="fieldPath"
@@ -200,11 +228,11 @@
 
         <div class="media-stage__controls">
           <IconButton icon="start" title="Go to start of video" @click="timeline.setCurrentTime(0)" />
-          <IconButton icon="step-back" title="Frame back" @click="timeline.frame(-1)" />
-          <IconButton icon="back" title="Second back" @click="timeline.seek(-1)" />
-          <IconButton :icon="timeline.state.isPlaying ? 'pause' : 'play'" title="Play" @click="timeline.togglePlay()" />
-          <IconButton icon="forward" title="Second forward" @click="timeline.seek(1)" />
-          <IconButton icon="step-forward" title="Frame forward" @click="timeline.frame(1)" />
+          <IconButton icon="step-back" title="Frame back (Left)" @click="timeline.frame(-1)" />
+          <IconButton icon="back" title="Second back (Shift+Left)" @click="timeline.seek(-1)" />
+          <IconButton :icon="timeline.state.isPlaying ? 'pause' : 'play'" title="Play/Pause (Space)" @click="timeline.togglePlay()" />
+          <IconButton icon="forward" title="Second forward (Shift+Right)" @click="timeline.seek(1)" />
+          <IconButton icon="step-forward" title="Frame forward (Right)" @click="timeline.frame(1)" />
         </div>
 
         <input
@@ -227,7 +255,7 @@
             <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'split' }" @click="setStageView('split')">Split</button>
             <button type="button" :class="{ 'media-stage__view-button--active': stageView === 'court' }" @click="setStageView('court')">2D</button>
           </div>
-          <IconButton icon="event" title="Add event" @click="events.add()" />
+          <IconButton icon="event" title="Add event (P)" @click="events.add()" />
         </div>
       </div>
     </div>
@@ -328,8 +356,9 @@ const drawableItems = computed(() => {
   return items;
 });
 const squareCircleGuideItems = computed(() => drawableItems.value.filter((item) => item.type === "square" && item.asCircle && item.points?.length >= 4));
-const shapeItems = computed(() => drawableItems.value.filter((item) => !["measure-grid", "chrono", "player", "ball", "delay"].includes(item.type)));
+const shapeItems = computed(() => drawableItems.value.filter((item) => !["measure-grid", "chrono", "player", "ball", "delay", "vertical-projection"].includes(item.type)));
 const measureLineItems = computed(() => drawableItems.value.filter((item) => item.type === "measure-line"));
+const projectionItems = computed(() => drawableItems.value.filter((item) => item.type === "vertical-projection" && item.points?.length >= 5));
 const playerItems = computed(() => drawableItems.value.filter((item) => ["player", "ball"].includes(item.type) && item.point));
 const visibleGrid = computed(() => visibleItems.value.find((item) => item.type === "measure-grid") || null);
 watchEffect(() => {
@@ -630,7 +659,7 @@ const beginPan = (event) => {
 
 const selectCanvasItem = (item, event = null) => {
   if (isMoveLocked.value && !isSelectedCanvasItem(item)) return;
-  if (item.type === "measure-line" || item.type === "measure-grid" || item.type === "chrono" || item.type === "player" || item.type === "ball") {
+  if (item.type === "measure-line" || item.type === "measure-grid" || item.type === "chrono" || item.type === "player" || item.type === "ball" || item.type === "vertical-projection") {
     measure.state.selectedItemId = item.id;
     draw.selectItem(null);
     if (event && measure.isActiveImageMove?.(item.id)) {
@@ -645,7 +674,7 @@ const selectCanvasItem = (item, event = null) => {
 };
 
 const isSelectedCanvasItem = (item) => {
-  if (item.type === "measure-line" || item.type === "measure-grid" || item.type === "chrono" || item.type === "player" || item.type === "ball") return item.id === measure.state.selectedItemId;
+  if (item.type === "measure-line" || item.type === "measure-grid" || item.type === "chrono" || item.type === "player" || item.type === "ball" || item.type === "vertical-projection") return item.id === measure.state.selectedItemId;
   return item.id === draw.state.selectedItemId;
 };
 
@@ -730,6 +759,25 @@ const pathFor = (item) => {
 
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 };
+
+const goalProjectionFillPath = (item) => {
+  const [a, b, projectionB, projectionA, c] = item.points || [];
+  if (!a || !b || !projectionB || !projectionA || !c) return "";
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} Z M ${projectionA.x} ${projectionA.y} L ${projectionB.x} ${projectionB.y} L ${c.x} ${c.y} Z`;
+};
+
+const goalProjectionLinePath = (item) => {
+  const [a, b, projectionB, projectionA, c] = item.points || [];
+  if (!a || !b || !projectionB || !projectionA || !c) return "";
+  return [
+    `M ${a.x} ${a.y} L ${b.x} ${b.y}`,
+    `M ${projectionA.x} ${projectionA.y} L ${projectionB.x} ${projectionB.y}`,
+    `M ${a.x} ${a.y} L ${c.x} ${c.y} L ${b.x} ${b.y}`,
+    `M ${projectionA.x} ${projectionA.y} L ${c.x} ${c.y} L ${projectionB.x} ${projectionB.y}`
+  ].join(" ");
+};
+
+const projectionPointLabel = (index) => ["u", "v", "V", "U", "C"][index] || `P${index + 1}`;
 
 const linearClosedPath = (points) => {
   if (!points.length) return "";
@@ -1189,6 +1237,10 @@ onBeforeUnmount(() => {
   fill: none;
   pointer-events: none;
   vector-effect: non-scaling-stroke;
+}
+
+.media-stage__projection-fill {
+  cursor: pointer;
 }
 
 .media-stage__field-square {

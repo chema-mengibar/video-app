@@ -57,6 +57,7 @@ export class MeasureService {
             editMode: null,
             editPointIndex: null,
             selectedItemId: null,
+            analysisItemId: null,
             draftItem: null,
             displayGrid: null,
             selectedPlayerTeam: "guest",
@@ -411,10 +412,10 @@ export class MeasureService {
             const item = this.selectedItem;
             const index = this.state.editPointIndex;
             if (!item?.points?.[index] || !this.moveStartPoints[index] || !this.dragStart) return;
-            item.points[index] = {
+            this.applyMeasurePoint(item, index, {
                 x: this.moveStartPoints[index].x + point.x - this.dragStart.x,
                 y: this.moveStartPoints[index].y + point.y - this.dragStart.y
-            };
+            });
             return;
         }
 
@@ -513,6 +514,32 @@ export class MeasureService {
         this.projectService.save();
     }
 
+    addGoalProjection() {
+        const start = this.timelineService.state.currentTime;
+        const item = {
+            id: crypto.randomUUID(),
+            type: "vertical-projection",
+            label: "Vertical Projection",
+            time_from: start,
+            time_to: start + 3,
+            color: "#45FFA2",
+            width: 2,
+            opacity: 0.9,
+            fillOpacity: 0.18,
+            visible: true,
+            points: [
+                { x: 39, y: 31 },
+                { x: 48, y: 31 },
+                { x: 48, y: 40 },
+                { x: 39, y: 40 },
+                { x: 72, y: 68 }
+            ]
+        };
+        this.items.push(item);
+        this.state.selectedItemId = item.id;
+        this.projectService.save();
+    }
+
     startMovePlayer(id) {
         const item = this.items.find((candidate) => candidate.id === id);
         this.prepareKeyframedItemForEdit(item);
@@ -579,8 +606,56 @@ export class MeasureService {
         const item = this.items.find((candidate) => candidate.id === id);
         this.prepareKeyframedItemForEdit(item);
         if (!item?.points?.[index]) return;
-        Object.assign(item.points[index], patch);
+        this.applyMeasurePoint(item, index, {
+            ...item.points[index],
+            ...patch
+        });
         this.saveMoveResult(item);
+    }
+
+    applyMeasurePoint(item, index, point) {
+        if (item?.type !== "vertical-projection") {
+            item.points[index] = point;
+            return;
+        }
+
+        this.normalizeGoalProjection(item);
+        const points = item.points;
+        const current = points[index];
+        if (!current) return;
+        const next = clonePoint(point);
+
+        if (index === 0) {
+            points[0] = { x: points[3].x, y: next.y };
+            return;
+        }
+
+        if (index === 1) {
+            points[1] = { x: points[2].x, y: next.y };
+            return;
+        }
+
+        if (index === 2 || index === 3) {
+            const linkedIndex = index === 2 ? 1 : 0;
+            const dx = next.x - current.x;
+            const dy = next.y - current.y;
+            points[index] = next;
+            points[linkedIndex] = {
+                x: points[linkedIndex].x + dx,
+                y: points[linkedIndex].y + dy
+            };
+            this.normalizeGoalProjection(item);
+            return;
+        }
+
+        points[index] = next;
+    }
+
+    normalizeGoalProjection(item) {
+        if (item?.type !== "vertical-projection" || item.points?.length < 5) return;
+        const [a, b, projectionB, projectionA] = item.points;
+        a.x = projectionA.x;
+        b.x = projectionB.x;
     }
 
     updatePlayerConfig(patch) {
